@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "شجرة النسب الشريف",
+    "slug": "shajara",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "shajara",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sa.pm.shajara"
+    },
+    "android": {
+      "package": "sa.pm.shajara",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F1E7"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "https://shajara.pm.sa/api/v1"
+    }
+  }
+}
