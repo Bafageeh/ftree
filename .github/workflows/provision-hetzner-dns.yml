@@ -1,0 +1,141 @@
+name: Provision Hetzner DNS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/provision-hetzner-dns.yml
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: Create shajara.pm.sa DNS record
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Validate configuration
+        shell: bash
+        env:
+          HETZNER_DNS_TOKEN: ${{ secrets.HETZNER_DNS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HETZNER_DNS_TOKEN" ]]; then
+            echo "Missing production secret: HETZNER_DNS_TOKEN"
+            exit 1
+          fi
+
+      - name: Create or update Hetzner DNS record
+        shell: bash
+        env:
+          HETZNER_DNS_TOKEN: ${{ secrets.HETZNER_DNS_TOKEN }}
+          ZONE_NAME: pm.sa
+          RECORD_NAME: shajara
+          RECORD_TYPE: A
+          RECORD_VALUE: 65.109.251.164
+          RECORD_TTL: "300"
+        run: |
+          set -euo pipefail
+
+          api() {
+            curl --fail-with-body --silent --show-error \
+              -H "Auth-API-Token: $HETZNER_DNS_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$@"
+          }
+
+          zones_json="$(api "https://dns.hetzner.com/api/v1/zones?name=$ZONE_NAME")"
+          zone_id="$(printf '%s' "$zones_json" | python3 -c '
+          import json,sys
+          data=json.load(sys.stdin)
+          zones=data.get("zones", [])
+          wanted="pm.sa"
+          for zone in zones:
+              if zone.get("name") == wanted:
+                  print(zone.get("id", ""))
+                  break
+          ')"
+
+          if [[ -z "$zone_id" ]]; then
+            echo "DNS zone $ZONE_NAME was not found in this Hetzner account."
+            exit 1
+          fi
+
+          records_json="$(api "https://dns.hetzner.com/api/v1/records?zone_id=$zone_id")"
+          record_id="$(printf '%s' "$records_json" | python3 -c '
+          import json,os,sys
+          data=json.load(sys.stdin)
+          for record in data.get("records", []):
+              if record.get("name") == os.environ["RECORD_NAME"] and record.get("type") == os.environ["RECORD_TYPE"]:
+                  print(record.get("id", ""))
+                  break
+          ')"
+
+          payload="$(python3 - <<'PY'
+          import json,os
+          print(json.dumps({
+              "zone_id": os.environ["zone_id"],
+              "type": os.environ["RECORD_TYPE"],
+              "name": os.environ["RECORD_NAME"],
+              "value": os.environ["RECORD_VALUE"],
+              "ttl": int(os.environ["RECORD_TTL"]),
+          }))
+          PY
+          )"
+
+          if [[ -n "$record_id" ]]; then
+            echo "Updating existing record $RECORD_NAME.$ZONE_NAME"
+            api -X PUT -d "$payload" "https://dns.hetzner.com/api/v1/records/$record_id" >/dev/null
+          else
+            echo "Creating record $RECORD_NAME.$ZONE_NAME"
+            api -X POST -d "$payload" "https://dns.hetzner.com/api/v1/records" >/dev/null
+          fi
+
+          echo "DNS record configured: $RECORD_NAME.$ZONE_NAME -> $RECORD_VALUE"
+        env:
+          zone_id: ${{ env.zone_id }}
+
+      - name: Wait for public DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="65.109.251.164"
+          for attempt in $(seq 1 30); do
+            cloudflare="$(dig @1.1.1.1 +short shajara.pm.sa A | tail -n 1 || true)"
+            google="$(dig @8.8.8.8 +short shajara.pm.sa A | tail -n 1 || true)"
+            echo "Attempt $attempt: Cloudflare=$cloudflare Google=$google"
+            if [[ "$cloudflare" == "$expected" || "$google" == "$expected" ]]; then
+              echo "Public DNS is active."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "DNS record was created but has not propagated yet."
+          exit 1
+
+      - name: Trigger cPanel AutoSSL
+        if: success()
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -p "$SERVER_PORT" \
+            "$SERVER_USER@$SERVER_HOST" \
+            '/usr/local/cpanel/bin/autossl_check --user=pmsa || true'
