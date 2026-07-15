@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+
+# Laravel runtime
+shajara-api/vendor/
+shajara-api/storage/*.key
+shajara-api/storage/framework/cache/*
+shajara-api/storage/framework/sessions/*
+shajara-api/storage/framework/views/*
+shajara-api/storage/logs/*
+shajara-api/bootstrap/cache/*.php
+shajara-api/database/database.sqlite
+
+# Expo / React Native runtime
+shajara-mobile/node_modules/
+shajara-mobile/.expo/
+shajara-mobile/dist/
+shajara-mobile/android/
+shajara-mobile/ios/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
