@@ -1,6 +1,14 @@
 import Constants from 'expo-constants';
 
-import type { LineageResponse, PaginatedPeople, Person, Stats } from '../types';
+import type {
+  LineageResponse,
+  PaginatedPeople,
+  Person,
+  ReviewRequestPayload,
+  ReviewRequestResponse,
+  ReviewRequestStatus,
+  Stats,
+} from '../types';
 
 const configuredUrl = process.env.EXPO_PUBLIC_API_URL
   ?? Constants.expoConfig?.extra?.apiUrl
@@ -37,21 +45,40 @@ const fallbackPeople: Person[] = [
   is_living: false,
 }));
 
-async function request<T>(path: string): Promise<T> {
+type RequestOptions = {
+  method?: 'GET' | 'POST';
+  body?: unknown;
+};
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 12000);
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
-      headers: { Accept: 'application/json' },
+      method: options.method ?? 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
 
+    const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+
     if (!response.ok) {
-      throw new Error(`API request failed with ${response.status}`);
+      const validationErrors = payload?.errors as Record<string, string[]> | undefined;
+      const firstValidationError = validationErrors
+        ? Object.values(validationErrors).flat()[0]
+        : undefined;
+      const message = firstValidationError
+        ?? (typeof payload?.message === 'string' ? payload.message : null)
+        ?? `تعذر إكمال الطلب (${response.status})`;
+      throw new Error(message);
     }
 
-    return await response.json() as T;
+    return payload as T;
   } finally {
     clearTimeout(timer);
   }
@@ -101,4 +128,15 @@ export async function getLineage(id: number): Promise<LineageResponse> {
       path_text: path.map((item) => item.full_name).join(' ← '),
     };
   }
+}
+
+export function submitReviewRequest(payload: ReviewRequestPayload): Promise<ReviewRequestResponse> {
+  return request<ReviewRequestResponse>('/review-requests', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export function getReviewRequestStatus(trackingCode: string): Promise<ReviewRequestStatus> {
+  return request<ReviewRequestStatus>(`/review-requests/${encodeURIComponent(trackingCode.trim())}`);
 }
