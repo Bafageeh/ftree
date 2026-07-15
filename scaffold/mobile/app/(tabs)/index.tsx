@@ -15,11 +15,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PersonCard } from '../../src/components/PersonCard';
-import { getPeople, getStats } from '../../src/lib/api';
+import { getChartReadingStats, getPeople, getStats } from '../../src/lib/api';
 import { colors, radius, shadow } from '../../src/theme';
-import type { Person, ReadingStatus, Stats } from '../../src/types';
+import type { ChartReadingStats, Person, ReadingStatus, Stats } from '../../src/types';
 
 const emptyStats: Stats = { total: 0, readable: 0, review: 0, unclear: 0, generations: 0 };
+const emptyReadingStats: ChartReadingStats = { total: 0, readable: 0, review: 0, unclear: 0, promoted: 0 };
 
 const filters: Array<{ value: ReadingStatus | ''; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { value: '', label: 'الكل', icon: 'apps' },
@@ -31,6 +32,7 @@ const filters: Array<{ value: ReadingStatus | ''; label: string; icon: keyof typ
 export default function HomeScreen() {
   const [people, setPeople] = useState<Person[]>([]);
   const [stats, setStats] = useState<Stats>(emptyStats);
+  const [readingStats, setReadingStats] = useState<ChartReadingStats>(emptyReadingStats);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ReadingStatus | ''>('');
   const [loading, setLoading] = useState(true);
@@ -38,9 +40,16 @@ export default function HomeScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
-    const [peopleResult, statsResult] = await Promise.all([getPeople(search, status), getStats()]);
+
+    const [peopleResult, statsResult, readingStatsResult] = await Promise.all([
+      getPeople(search, status),
+      getStats(),
+      getChartReadingStats().catch(() => emptyReadingStats),
+    ]);
+
     setPeople(peopleResult);
     setStats(statsResult);
+    setReadingStats(readingStatsResult);
     setLoading(false);
     setRefreshing(false);
   }, [search, status]);
@@ -114,12 +123,38 @@ export default function HomeScreen() {
               })}
             </ScrollView>
 
-            <View style={styles.statsGrid}>
-              <StatCard label="الأسماء" value={stats.total} icon="people" />
-              <StatCard label="الأجيال" value={stats.generations} icon="git-branch" />
-              <StatCard label="واضحة" value={stats.readable} icon="checkmark-circle" />
-              <StatCard label="للمراجعة" value={stats.review} icon="time" />
+            <View style={styles.statsSectionHeader}>
+              <Text style={styles.statsSectionTitle}>الشجرة المعتمدة</Text>
+              <Text style={styles.statsSectionHint}>علاقات نسب مرتبطة ومراجعة مبدئيًا</Text>
             </View>
+
+            <View style={styles.statsGrid}>
+              <StatCard label="الأسماء المعتمدة" value={stats.total} icon="people" />
+              <StatCard label="الأجيال" value={stats.generations} icon="git-branch" />
+            </View>
+
+            <Pressable
+              onPress={() => router.push('/(tabs)/review')}
+              style={({ pressed }) => [styles.readingPanel, pressed && styles.pressed]}
+            >
+              <View style={styles.readingPanelHeader}>
+                <View style={styles.readingPanelIcon}>
+                  <Ionicons name="scan" size={25} color={colors.gold} />
+                </View>
+                <View style={styles.readingPanelTitleWrap}>
+                  <Text style={styles.readingPanelTitle}>تقدم قراءة المشجرة</Text>
+                  <Text style={styles.readingPanelSubtitle}>القراءات الجديدة محفوظة للمراجعة قبل ربطها بالنسب</Text>
+                </View>
+                <Ionicons name="chevron-back" size={20} color={colors.primary} />
+              </View>
+
+              <View style={styles.readingStatsRow}>
+                <MiniStat label="إجمالي القراءات" value={readingStats.total} />
+                <MiniStat label="واضحة" value={readingStats.readable} />
+                <MiniStat label="تحتاج مراجعة" value={readingStats.review} />
+                <MiniStat label="غير محسومة" value={readingStats.unclear} />
+              </View>
+            </Pressable>
 
             <View style={styles.contributionBanner}>
               <View style={styles.contributionIcon}>
@@ -135,7 +170,7 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{search || status ? 'النتائج' : 'أبرز الأسماء'}</Text>
+              <Text style={styles.sectionTitle}>{search || status ? 'النتائج' : 'أبرز الأسماء المعتمدة'}</Text>
               <Text style={styles.sectionMeta}>{people.length} اسم</Text>
             </View>
           </>
@@ -161,6 +196,15 @@ function StatCard({ label, value, icon }: { label: string; value: number; icon: 
   );
 }
 
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.miniStat}>
+      <Text style={styles.miniStatValue}>{value}</Text>
+      <Text style={styles.miniStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: 18, paddingBottom: 110 },
@@ -176,10 +220,24 @@ const styles = StyleSheet.create({
   filterChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterText: { color: colors.primary, fontSize: 12, fontWeight: '800' },
   filterTextSelected: { color: colors.white },
-  statsGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10, marginTop: 14 },
-  statCard: { alignItems: 'flex-end', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexBasis: '47%', flexGrow: 1, padding: 15 },
+  statsSectionHeader: { marginTop: 18 },
+  statsSectionTitle: { color: colors.text, fontSize: 17, fontWeight: '900', textAlign: 'right' },
+  statsSectionHint: { color: colors.muted, fontSize: 12, marginTop: 3, textAlign: 'right' },
+  statsGrid: { flexDirection: 'row-reverse', gap: 10, marginTop: 10 },
+  statCard: { alignItems: 'flex-end', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flex: 1, padding: 15 },
   statValue: { color: colors.primary, fontSize: 24, fontWeight: '900', marginTop: 8 },
   statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  readingPanel: { backgroundColor: colors.surface, borderColor: colors.goldSoft, borderRadius: radius.lg, borderWidth: 1, marginTop: 14, padding: 15, ...shadow },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.995 }] },
+  readingPanelHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 10 },
+  readingPanelIcon: { alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: 18, height: 46, justifyContent: 'center', width: 46 },
+  readingPanelTitleWrap: { flex: 1 },
+  readingPanelTitle: { color: colors.primary, fontSize: 16, fontWeight: '900', textAlign: 'right' },
+  readingPanelSubtitle: { color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 3, textAlign: 'right' },
+  readingStatsRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 14 },
+  miniStat: { alignItems: 'center', backgroundColor: colors.background, borderRadius: radius.md, flex: 1, minHeight: 72, paddingHorizontal: 4, paddingVertical: 10 },
+  miniStatValue: { color: colors.primary, fontSize: 20, fontWeight: '900' },
+  miniStatLabel: { color: colors.muted, fontSize: 9, marginTop: 4, textAlign: 'center' },
   contributionBanner: { alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 10, marginTop: 14, padding: 14 },
   contributionIcon: { alignItems: 'center', backgroundColor: colors.surface, borderRadius: 18, height: 46, justifyContent: 'center', width: 46 },
   contributionTextWrap: { flex: 1 },
