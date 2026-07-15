@@ -13,14 +13,15 @@ export default function TabsLayout() {
         headerTitleStyle: { color: colors.primary, fontWeight: '800' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.line,
-          height: 72,
+          height: 74,
           paddingBottom: 10,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
       }}
     >
       <Tabs.Screen
@@ -42,6 +43,13 @@ export default function TabsLayout() {
         options={{
           title: 'المراجعة',
           tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="contribute"
+        options={{
+          title: 'مساهمة',
+          tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
