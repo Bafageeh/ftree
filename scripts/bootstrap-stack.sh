@@ -92,6 +92,7 @@ cp "$SCAFFOLD_PATH/mobile/.env.example" "$MOBILE_PATH/.env.example"
 
 cd "$MOBILE_PATH"
 npm install --no-audit --no-fund
+npx expo install @expo/vector-icons expo-constants expo-router react-native-safe-area-context
 npx expo install --fix
 npx tsc --noEmit
 
