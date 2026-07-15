@@ -1,15 +1,21 @@
 export type ReadingStatus = 'readable' | 'review' | 'unclear';
 export type ReviewRequestType = 'correction' | 'addition' | 'source';
+export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'unknown';
 
 export type Person = {
   id: number;
   full_name: string;
+  node_type?: GenealogyNodeType;
   honorific?: string | null;
   lineage_parent_id?: number | null;
   status: ReadingStatus;
+  chart_branch?: string | null;
+  chart_color?: string | null;
   generation: number;
   summary?: string | null;
   source_reference?: string | null;
+  source_locator?: string | null;
+  chart_order?: number | null;
   is_living: boolean;
 };
 
