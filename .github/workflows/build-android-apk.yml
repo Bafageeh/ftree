@@ -1,0 +1,111 @@
+name: Build Shajara Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-android-apk.yml
+      - scaffold/mobile/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-android-apk
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      EXPO_PUBLIC_API_URL: https://shajara.pm.sa/api/v1
+      CI: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scaffold/mobile/app.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Create Expo SDK 57 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx create-expo-app@latest shajara-mobile --template default@sdk-57 --yes
+          rm -rf shajara-mobile/app shajara-mobile/src
+          mkdir -p shajara-mobile/app shajara-mobile/src
+          cp -a scaffold/mobile/app/. shajara-mobile/app/
+          cp -a scaffold/mobile/src/. shajara-mobile/src/
+          cp scaffold/mobile/app.json shajara-mobile/app.json
+
+      - name: Install Expo dependencies
+        working-directory: shajara-mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npx expo install \
+            @expo/vector-icons \
+            expo-constants \
+            expo-router \
+            react-native-safe-area-context \
+            react-dom \
+            react-native-web \
+            @expo/metro-runtime
+          npx expo install --fix
+          npx tsc --noEmit
+
+      - name: Generate native Android project
+        working-directory: shajara-mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --clean
+
+      - name: Build installable APK
+        working-directory: shajara-mobile/android
+        shell: bash
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_SOURCE='shajara-mobile/android/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$APK_SOURCE"
+          cp "$APK_SOURCE" Shajara-Android.apk
+          ls -lh Shajara-Android.apk
+          sha256sum Shajara-Android.apk > Shajara-Android.apk.sha256
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shajara-Android-APK
+          path: |
+            Shajara-Android.apk
+            Shajara-Android.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
