@@ -30,11 +30,11 @@ jobs:
           SERVER_PORT: ${{ vars.SERVER_PORT }}
           SERVER_USER: ${{ vars.SERVER_USER }}
           APP_PATH: ${{ vars.APP_PATH }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
           SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          for name in SERVER_HOST SERVER_PORT SERVER_USER APP_PATH SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
+          for name in SERVER_HOST SERVER_PORT SERVER_USER APP_PATH SSH_PRIVATE_KEY_B64 SSH_KNOWN_HOSTS; do
             if [[ -z "${!name:-}" ]]; then
               echo "Missing required production value: $name"
               exit 1
@@ -44,13 +44,13 @@ jobs:
       - name: Configure SSH
         shell: bash
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
           SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null
 
