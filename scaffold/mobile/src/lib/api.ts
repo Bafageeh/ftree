@@ -55,8 +55,9 @@ const fallbackPeople: Person[] = [
   { id: 22, full_name: 'أحمد بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'ahmad_faqih', chart_order: 22 },
   { id: 23, full_name: 'علي بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'ali_faqih', chart_order: 23 },
   { id: 24, full_name: 'عبد الرحمن بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'abdulrahman_faqih', chart_order: 24 },
-].map((person) => ({
+].map((person): Person => ({
   ...person,
+  status: person.status as ReadingStatus,
   node_type: 'person',
   summary: fallbackSummary,
   source_reference: sourceReference,
@@ -139,10 +140,15 @@ export async function getLineage(id: number): Promise<LineageResponse> {
   try {
     return await request<LineageResponse>(`/people/${id}/lineage`);
   } catch {
-    const byId = new Map(fallbackPeople.map((person) => [person.id, person]));
+    const byId = new Map<number, Person>(fallbackPeople.map((person) => [person.id, person]));
     const path: Person[] = [];
-    let person = byId.get(id) ?? fallbackPeople[0];
-    const selected = person;
+    const selected = byId.get(id) ?? fallbackPeople[0];
+
+    if (!selected) {
+      throw new Error('لا توجد بيانات احتياطية لمسار النسب.');
+    }
+
+    let person: Person | undefined = selected;
     const visited = new Set<number>();
 
     while (person && !visited.has(person.id)) {
