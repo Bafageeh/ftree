@@ -9,42 +9,64 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $rows = [
-            ['محمد ﷺ', 'رسول الله ﷺ', null, 'readable'],
-            ['فاطمة الزهراء', 'رضي الله عنها', 1, 'readable'],
-            ['الحسين السبط', 'رضي الله عنه', 2, 'readable'],
-            ['علي زين العابدين', null, 3, 'readable'],
-            ['محمد الباقر', null, 4, 'readable'],
-            ['جعفر الصادق', null, 5, 'readable'],
-            ['علي العريضي', null, 6, 'review'],
-            ['محمد النقيب', null, 7, 'review'],
-            ['عيسى النقيب', null, 8, 'review'],
-            ['أحمد المهاجر', null, 9, 'readable'],
-            ['عبيد الله', null, 10, 'review'],
-            ['علوي', null, 11, 'review'],
-            ['محمد', null, 12, 'review'],
-            ['علوي', null, 13, 'review'],
-            ['علي خالع قسم', null, 14, 'review'],
-            ['محمد صاحب مرباط', null, 15, 'review'],
+        $nodes = [
+            // السلسلة الوسطى المقروءة في الجذع.
+            ['key' => 'prophet', 'name' => 'محمد ﷺ', 'honorific' => 'رسول الله ﷺ', 'parent' => null, 'generation' => 1, 'order' => 1, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط - الدائرة الكبرى'],
+            ['key' => 'fatimah', 'name' => 'فاطمة الزهراء', 'honorific' => 'رضي الله عنها', 'parent' => 'prophet', 'generation' => 2, 'order' => 2, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط - فوق الدائرة الكبرى'],
+            ['key' => 'husayn', 'name' => 'الحسين السبط', 'honorific' => 'رضي الله عنه', 'parent' => 'fatimah', 'generation' => 3, 'order' => 3, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'zayn', 'name' => 'علي زين العابدين', 'honorific' => null, 'parent' => 'husayn', 'generation' => 4, 'order' => 4, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'baqir', 'name' => 'محمد الباقر', 'honorific' => null, 'parent' => 'zayn', 'generation' => 5, 'order' => 5, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'sadiq', 'name' => 'جعفر الصادق', 'honorific' => null, 'parent' => 'baqir', 'generation' => 6, 'order' => 6, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'uraydi', 'name' => 'علي العريضي', 'honorific' => null, 'parent' => 'sadiq', 'generation' => 7, 'order' => 7, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'muhammad_naqib', 'name' => 'محمد النقيب', 'honorific' => null, 'parent' => 'uraydi', 'generation' => 8, 'order' => 8, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'isa_naqib', 'name' => 'عيسى النقيب', 'honorific' => null, 'parent' => 'muhammad_naqib', 'generation' => 9, 'order' => 9, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'ahmad_muhajir', 'name' => 'أحمد المهاجر', 'honorific' => null, 'parent' => 'isa_naqib', 'generation' => 10, 'order' => 10, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'ubaydillah', 'name' => 'عبيد الله', 'honorific' => null, 'parent' => 'ahmad_muhajir', 'generation' => 11, 'order' => 11, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'alawi_1', 'name' => 'علوي', 'honorific' => null, 'parent' => 'ubaydillah', 'generation' => 12, 'order' => 12, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط - علوي الأول'],
+            ['key' => 'muhammad_2', 'name' => 'محمد', 'honorific' => null, 'parent' => 'alawi_1', 'generation' => 13, 'order' => 13, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط - محمد الثاني'],
+            ['key' => 'alawi_2', 'name' => 'علوي', 'honorific' => null, 'parent' => 'muhammad_2', 'generation' => 14, 'order' => 14, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط - علوي الثاني'],
+            ['key' => 'khali_qasam', 'name' => 'علي خالع قسم', 'honorific' => null, 'parent' => 'alawi_2', 'generation' => 15, 'order' => 15, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'الجذع الأوسط'],
+            ['key' => 'sahib_mirbat', 'name' => 'محمد صاحب مرباط', 'honorific' => null, 'parent' => 'khali_qasam', 'generation' => 16, 'order' => 16, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'رأس الجذع الأوسط'],
+
+            // بداية التفرع الملوّن كما يظهر في مركز المشجرة ومفتاح الألوان.
+            ['key' => 'ali_father_faqih', 'name' => 'علي بن محمد صاحب مرباط', 'honorific' => 'والد الفقيه المقدم', 'parent' => 'sahib_mirbat', 'generation' => 17, 'order' => 17, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'مركز المشجرة - علي والد الفقيه'],
+            ['key' => 'faqih_muqaddam', 'name' => 'محمد الفقيه المقدم', 'honorific' => null, 'parent' => 'ali_father_faqih', 'generation' => 18, 'order' => 18, 'branch' => 'central_trunk', 'color' => '#B98249', 'status' => 'readable', 'locator' => 'مركز المشجرة - محمد الفقيه المقدم'],
+            ['key' => 'alawi_faqih', 'name' => 'علوي بن الفقيه المقدم', 'honorific' => null, 'parent' => 'faqih_muqaddam', 'generation' => 19, 'order' => 19, 'branch' => 'alawi_faqih', 'color' => '#DFF3D4', 'status' => 'readable', 'locator' => 'مركز المشجرة ومفتاح الألوان'],
+            ['key' => 'ali_alawi_faqih', 'name' => 'علي بن علوي بن الفقيه المقدم', 'honorific' => null, 'parent' => 'alawi_faqih', 'generation' => 20, 'order' => 20, 'branch' => 'ali_alawi_faqih', 'color' => '#8EDB79', 'status' => 'readable', 'locator' => 'مفتاح الألوان - الفرع الأخضر'],
+            ['key' => 'abdullah_alawi_faqih', 'name' => 'عبد الله بن علوي بن الفقيه المقدم', 'honorific' => null, 'parent' => 'alawi_faqih', 'generation' => 20, 'order' => 21, 'branch' => 'abdullah_alawi_faqih', 'color' => '#FFFFFF', 'status' => 'readable', 'locator' => 'مفتاح الألوان - الفرع الأبيض'],
+            ['key' => 'ahmad_faqih', 'name' => 'أحمد بن الفقيه المقدم', 'honorific' => null, 'parent' => 'faqih_muqaddam', 'generation' => 19, 'order' => 22, 'branch' => 'ahmad_faqih', 'color' => '#DCEEF2', 'status' => 'readable', 'locator' => 'مفتاح الألوان - الفرع الأزرق الفاتح'],
+            ['key' => 'ali_faqih', 'name' => 'علي بن الفقيه المقدم', 'honorific' => null, 'parent' => 'faqih_muqaddam', 'generation' => 19, 'order' => 23, 'branch' => 'ali_faqih', 'color' => '#DFF3D4', 'status' => 'readable', 'locator' => 'مفتاح الألوان - الفرع الأخضر الفاتح'],
+            ['key' => 'abdulrahman_faqih', 'name' => 'عبد الرحمن بن الفقيه المقدم', 'honorific' => null, 'parent' => 'faqih_muqaddam', 'generation' => 19, 'order' => 24, 'branch' => 'abdulrahman_faqih', 'color' => '#F3E7A1', 'status' => 'readable', 'locator' => 'مفتاح الألوان - الفرع الأصفر'],
         ];
 
-        $ids = [];
+        $records = [];
 
-        foreach ($rows as $index => [$name, $honorific, $parentGeneration, $status]) {
-            $generation = $index + 1;
-            $person = Person::updateOrCreate(
-                ['full_name' => $name, 'generation' => $generation],
-                [
-                    'honorific' => $honorific,
-                    'lineage_parent_id' => $parentGeneration ? ($ids[$parentGeneration] ?? null) : null,
-                    'status' => $status,
-                    'summary' => 'قراءة تأسيسية من السلسلة الوسطى للمشجرة، وتحتاج إلى ربطها بالمصدر المعتمد.',
-                    'source_reference' => 'المشجرة الأصلية المرفقة',
-                    'is_living' => false,
-                ]
-            );
+        foreach ($nodes as $node) {
+            $parentId = $node['parent'] ? ($records[$node['parent']]->id ?? null) : null;
 
-            $ids[$generation] = $person->id;
+            $query = Person::query()
+                ->where('full_name', $node['name'])
+                ->where('generation', $node['generation']);
+
+            $person = $query->first() ?? new Person();
+            $person->fill([
+                'full_name' => $node['name'],
+                'node_type' => 'person',
+                'honorific' => $node['honorific'],
+                'lineage_parent_id' => $parentId,
+                'status' => $node['status'],
+                'chart_branch' => $node['branch'],
+                'chart_color' => $node['color'],
+                'generation' => $node['generation'],
+                'summary' => 'قراءة مباشرة من مشجرة أصول السادة آل باعلوي المرفقة، وتخضع للمراجعة العلمية وربط المصادر.',
+                'source_reference' => 'مشجرة أصول السادة آل باعلوي - الصفحة الوحيدة',
+                'source_locator' => $node['locator'],
+                'chart_order' => $node['order'],
+                'is_living' => false,
+            ]);
+            $person->save();
+
+            $records[$node['key']] = $person;
         }
     }
 }
