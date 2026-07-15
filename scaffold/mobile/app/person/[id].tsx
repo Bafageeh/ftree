@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLineage } from '../../src/lib/api';
@@ -23,6 +23,16 @@ export default function PersonDetailsScreen() {
     return <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>;
   }
 
+  const openContribution = () => {
+    router.push({
+      pathname: '/(tabs)/contribute',
+      params: {
+        personId: String(data.person.id),
+        personName: data.person.full_name,
+      },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -35,13 +45,29 @@ export default function PersonDetailsScreen() {
           </View>
         </View>
 
+        <View style={styles.actionsRow}>
+          <Pressable
+            onPress={() => Share.share({ message: data.path_text })}
+            style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="share-social" size={19} color={colors.primary} />
+            <Text style={styles.actionButtonText}>مشاركة</Text>
+          </Pressable>
+          <Pressable
+            onPress={openContribution}
+            style={({ pressed }) => [styles.correctionButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="create" size={19} color={colors.white} />
+            <Text style={styles.correctionButtonText}>اقترح تصحيحًا</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="git-network" size={22} color={colors.gold} />
             <Text style={styles.sectionTitle}>مسار النسب</Text>
           </View>
           <Text selectable style={styles.pathText}>{data.path_text}</Text>
-          <Text onPress={() => Share.share({ message: data.path_text })} style={styles.shareButton}>مشاركة المسار</Text>
         </View>
 
         <View style={styles.sectionCard}>
@@ -86,18 +112,23 @@ function statusLabel(status: string) {
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.background, flex: 1 },
   loading: { alignItems: 'center', backgroundColor: colors.background, flex: 1, justifyContent: 'center' },
-  content: { padding: 18, paddingBottom: 60 },
+  content: { padding: 18, paddingBottom: 70 },
   profileCard: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.lg, padding: 26, ...shadow },
   avatar: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: 30, height: 72, justifyContent: 'center', width: 72 },
   name: { color: colors.white, fontSize: 28, fontWeight: '900', marginTop: 16, textAlign: 'center' },
   honorific: { color: '#D8E5DC', fontSize: 14, marginTop: 5 },
   generationPill: { backgroundColor: 'rgba(255,255,255,.13)', borderRadius: radius.pill, marginTop: 14, paddingHorizontal: 13, paddingVertical: 7 },
   generationText: { color: colors.white, fontSize: 12, fontWeight: '800' },
+  actionsRow: { flexDirection: 'row-reverse', gap: 10, marginTop: 14 },
+  actionButton: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, flex: 1, flexDirection: 'row-reverse', gap: 8, justifyContent: 'center', minHeight: 52 },
+  actionButtonText: { color: colors.primary, fontSize: 14, fontWeight: '900' },
+  correctionButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flex: 1.35, flexDirection: 'row-reverse', gap: 8, justifyContent: 'center', minHeight: 52 },
+  correctionButtonText: { color: colors.white, fontSize: 14, fontWeight: '900' },
+  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   sectionCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginTop: 14, padding: 18 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 12 },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   pathText: { color: colors.text, fontSize: 16, lineHeight: 30, textAlign: 'right' },
-  shareButton: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, color: colors.primary, fontWeight: '800', marginTop: 14, overflow: 'hidden', paddingHorizontal: 14, paddingVertical: 9 },
   detailRow: { borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
   detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' },
   detailValue: { color: colors.text, fontSize: 15, lineHeight: 24, marginTop: 4, textAlign: 'right' },
