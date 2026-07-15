@@ -10,6 +10,7 @@ import { colors, radius, shadow } from '../../src/theme';
 import type { ChartReading, Person } from '../../src/types';
 
 type Mode = 'readings' | 'people';
+type ReviewItem = ChartReading | Person;
 
 export default function ReviewScreen() {
   const [mode, setMode] = useState<Mode>('readings');
@@ -30,11 +31,11 @@ export default function ReviewScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const data = mode === 'readings' ? readings : people;
+  const data: ReviewItem[] = mode === 'readings' ? readings : people;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <FlatList
+      <FlatList<ReviewItem>
         data={data}
         keyExtractor={(item) => `${mode}-${item.id}`}
         contentContainerStyle={styles.content}
