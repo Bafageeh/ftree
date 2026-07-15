@@ -34,15 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: scaffold/mobile/app.json
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
 
       - name: Create Expo SDK 57 project
         shell: bash
@@ -78,6 +69,20 @@ jobs:
         run: |
           set -euo pipefail
           npx expo prebuild --platform android --clean
+          test -s android/gradle/wrapper/gradle-wrapper.properties
+          test -s android/gradlew
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
 
       - name: Build installable APK
         working-directory: shajara-mobile/android
