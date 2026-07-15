@@ -1,0 +1,111 @@
+name: Diagnose Shajara DNS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/dns-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Collect DNS diagnostics
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -p "$SERVER_PORT" \
+            "$SERVER_USER@$SERVER_HOST" \
+            'bash -s' > dns-diagnostic.txt <<'REMOTE'
+          set +e
+          echo "generated_utc=$(date -u +%FT%TZ)"
+          echo "server_main_ip=$(cat /var/cpanel/mainip 2>/dev/null | tr -d "[:space:]")"
+          echo ""
+          echo "[authoritative_nameservers]"
+          dig +short pm.sa NS 2>/dev/null || true
+          echo ""
+          echo "[local_a_record]"
+          dig @127.0.0.1 +short shajara.pm.sa A 2>/dev/null || true
+          echo ""
+          echo "[cloudflare_a_record]"
+          dig @1.1.1.1 +short shajara.pm.sa A 2>/dev/null || true
+          echo ""
+          echo "[google_a_record]"
+          dig @8.8.8.8 +short shajara.pm.sa A 2>/dev/null || true
+          echo ""
+          echo "[cpanel_zone_record]"
+          /usr/local/cpanel/bin/uapi --output=json --user=pmsa ZoneEdit fetchzone_records domain=pm.sa 2>/dev/null | python3 - <<'PY'
+          import json,sys
+          try:
+              obj=json.load(sys.stdin)
+          except Exception:
+              raise SystemExit(0)
+          def walk(v):
+              if isinstance(v,dict):
+                  yield v
+                  for x in v.values():
+                      yield from walk(x)
+              elif isinstance(v,list):
+                  for x in v:
+                      yield from walk(x)
+          for item in walk(obj):
+              name=str(item.get('name') or item.get('dname') or '')
+              if 'shajara.pm.sa' in name:
+                  print(json.dumps(item,ensure_ascii=False,sort_keys=True))
+          PY
+          echo ""
+          echo "[domain_userdata]"
+          grep -R "documentroot\|serveralias\|servername" /var/cpanel/userdata/pmsa/shajara.pm.sa* 2>/dev/null || true
+          echo ""
+          echo "[public_html_link]"
+          ls -ld /mnt/home-storage/home/pmsa/public_html/apps/shajara 2>/dev/null || true
+          readlink -f /mnt/home-storage/home/pmsa/public_html/apps/shajara 2>/dev/null || true
+          echo ""
+          echo "[application_path]"
+          ls -la /mnt/home-storage/home/pmsa/apps/shajara 2>/dev/null | head -n 20 || true
+          REMOTE
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dns-diagnostic.txt
+          if git diff --cached --quiet; then
+            echo "No diagnostic changes to commit."
+          else
+            git commit -m "Update DNS diagnostic report"
+            git push
+          fi
