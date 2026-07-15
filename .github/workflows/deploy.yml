@@ -89,13 +89,14 @@ jobs:
             ./ \
             "$SERVER_USER@$SERVER_HOST:$APP_PATH/"
 
-      - name: Verify deployment
+      - name: Sync cPanel document root
         shell: bash
         env:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT }}
           SERVER_USER: ${{ vars.SERVER_USER }}
           APP_PATH: ${{ vars.APP_PATH }}
+          WEB_ROOT: /mnt/home-storage/home/pmsa/public_html/apps/shajara
         run: |
           set -euo pipefail
           ssh \
@@ -104,4 +105,22 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -p "$SERVER_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "test -s '$APP_PATH/index.html' && test -s '$APP_PATH/assets/app.js' && echo 'Deployment verified: $APP_PATH'"
+            "set -e; mkdir -p '$WEB_ROOT'; rsync -a --delete '$APP_PATH/' '$WEB_ROOT/'; chown -R pmsa:pmsa '$WEB_ROOT'; find '$WEB_ROOT' -type d -exec chmod 0755 {} +; find '$WEB_ROOT' -type f -exec chmod 0644 {} +"
+
+      - name: Verify deployment
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          APP_PATH: ${{ vars.APP_PATH }}
+          WEB_ROOT: /mnt/home-storage/home/pmsa/public_html/apps/shajara
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -p "$SERVER_PORT" \
+            "$SERVER_USER@$SERVER_HOST" \
+            "test -s '$APP_PATH/index.html' && test -s '$WEB_ROOT/index.html' && test -s '$WEB_ROOT/assets/app.js' && echo 'Deployment verified: $WEB_ROOT'"
