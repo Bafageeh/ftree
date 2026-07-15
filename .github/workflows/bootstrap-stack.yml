@@ -1,0 +1,68 @@
+name: Bootstrap Laravel and Mobile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Build Laravel 13 and Expo SDK 57
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+      - name: Upload scaffolding
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p $SERVER_PORT" \
+            scaffold/ \
+            "root@$SERVER_HOST:$APP_PATH/scaffold/"
+
+      - name: Create Laravel and mobile projects
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "bash -s -- '$APP_PATH'" < scripts/bootstrap-stack.sh
+
+      - name: Verify stack
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" \
+            "test -s '$APP_PATH/shajara-api/artisan' && test -s '$APP_PATH/shajara-mobile/package.json' && cat '$APP_PATH/STACK_STATUS.txt'"
