@@ -92,8 +92,8 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${READING_COUNT:-}" ] || [ "$READING_COUNT" -lt 39 ]; then
-            echo "Expected at least 39 chart readings after migration and seeding."
+          if [ -z "${READING_COUNT:-}" ] || [ "$READING_COUNT" -lt 111 ]; then
+            echo "Expected at least 111 chart readings after migration and seeding."
             exit 1
           fi
 
@@ -109,8 +109,8 @@ jobs:
             printf '%s\n' "$STATS_JSON"
             php -r '
               $data = json_decode($argv[1], true);
-              if (!is_array($data) || ($data["total"] ?? 0) < 39) {
-                  fwrite(STDERR, "Chart-reading stats API did not return at least 39 records.\n");
+              if (!is_array($data) || ($data["total"] ?? 0) < 111) {
+                  fwrite(STDERR, "Chart-reading stats API did not return at least 111 records.\n");
                   exit(1);
               }
             ' "$STATS_JSON"
