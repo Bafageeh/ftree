@@ -1,0 +1,110 @@
+name: Start Shajara Expo
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/start-expo.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-expo-8083
+  cancel-in-progress: true
+
+jobs:
+  start:
+    name: Start Expo on 8083
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Restart Expo Metro in background
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+          EXPO_PORT: "8083"
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' EXPO_PORT='$EXPO_PORT' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          MOBILE_PATH="$APP_PATH/shajara-mobile"
+          PID_FILE="$MOBILE_PATH/.expo-$EXPO_PORT.pid"
+          LOG_FILE="$MOBILE_PATH/expo-$EXPO_PORT.log"
+
+          test -s "$MOBILE_PATH/package.json" || {
+            echo "Missing Expo project: $MOBILE_PATH/package.json"
+            exit 1
+          }
+
+          if [[ -s "$PID_FILE" ]]; then
+            OLD_PID="$(cat "$PID_FILE" || true)"
+            if [[ -n "$OLD_PID" ]] && kill -0 "$OLD_PID" 2>/dev/null; then
+              kill "$OLD_PID" || true
+              sleep 2
+            fi
+          fi
+
+          pkill -f "expo start.*--port $EXPO_PORT" 2>/dev/null || true
+          if command -v fuser >/dev/null 2>&1; then
+            fuser -k "$EXPO_PORT/tcp" 2>/dev/null || true
+          fi
+
+          cd "$MOBILE_PATH"
+          : > "$LOG_FILE"
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 \
+            npx expo start --clear --port "$EXPO_PORT" --lan \
+            > "$LOG_FILE" 2>&1 < /dev/null &
+          NEW_PID=$!
+          echo "$NEW_PID" > "$PID_FILE"
+
+          for attempt in $(seq 1 45); do
+            if ! kill -0 "$NEW_PID" 2>/dev/null; then
+              echo "Expo process stopped unexpectedly."
+              tail -n 100 "$LOG_FILE" || true
+              exit 1
+            fi
+
+            STATUS="$(curl -fsS --max-time 2 "http://127.0.0.1:$EXPO_PORT/status" 2>/dev/null || true)"
+            if printf '%s' "$STATUS" | grep -qi 'running'; then
+              echo "Expo Metro is running."
+              echo "PID: $NEW_PID"
+              echo "Metro: exp://65.109.251.164:$EXPO_PORT"
+              echo "Web development: http://65.109.251.164:$EXPO_PORT"
+              tail -n 35 "$LOG_FILE" || true
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "Expo did not become ready within 45 seconds."
+          tail -n 120 "$LOG_FILE" || true
+          exit 1
+          REMOTE
