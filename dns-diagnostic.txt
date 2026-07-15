@@ -1,0 +1,41 @@
+generated_utc=2026-07-15T17:59:20Z
+server_main_ip=65.109.251.164
+
+[authoritative_nameservers]
+oxygen.ns.hetzner.com.
+helium.ns.hetzner.de.
+hydrogen.ns.hetzner.com.
+
+[local_a_record]
+65.109.251.164
+
+[cloudflare_a_record]
+
+[google_a_record]
+
+[cpanel_zone_record]
+
+[domain_userdata]
+/var/cpanel/userdata/pmsa/shajara.pm.sa:documentroot: /mnt/home-storage/home/pmsa/public_html/apps/shajara
+/var/cpanel/userdata/pmsa/shajara.pm.sa:serveralias: www.shajara.pm.sa
+/var/cpanel/userdata/pmsa/shajara.pm.sa:servername: shajara.pm.sa
+/var/cpanel/userdata/pmsa/shajara.pm.sa.cache:{"group":"pmsa","phpversion":"ea-php84","serveradmin":"webmaster@shajara.pm.sa","documentroot":"/mnt/home-storage/home/pmsa/public_html/apps/shajara","usecanonicalname":"Off","ip":"65.109.251.164","phpopenbasedirprotect":"1","owner":"pmsa","hascgi":"1","no_cache_update":"0","servername":"shajara.pm.sa","homedir":"/mnt/home-storage/home/pmsa","userdirprotect":"","serveralias":"www.shajara.pm.sa","user":"pmsa","ipv6":null}
+/var/cpanel/userdata/pmsa/shajara.pm.sa_SSL:documentroot: /mnt/home-storage/home/pmsa/public_html/apps/shajara
+/var/cpanel/userdata/pmsa/shajara.pm.sa_SSL:serveralias: www.shajara.pm.sa
+/var/cpanel/userdata/pmsa/shajara.pm.sa_SSL:servername: shajara.pm.sa
+/var/cpanel/userdata/pmsa/shajara.pm.sa_SSL.cache:{"secruleengineoff":null,"port":"443","ipv6":null,"user":"pmsa","serveralias":"www.shajara.pm.sa","ssl":"1","userdirprotect":"","homedir":"/mnt/home-storage/home/pmsa","servername":"shajara.pm.sa","hascgi":"1","owner":"pmsa","phpopenbasedirprotect":null,"ip":"65.109.251.164","usecanonicalname":"Off","serveradmin":"webmaster@shajara.pm.sa","documentroot":"/mnt/home-storage/home/pmsa/public_html/apps/shajara","group":"pmsa"}
+
+[public_html_link]
+lrwxrwxrwx 1 pmsa pmsa 40 Jul 15 20:55 /mnt/home-storage/home/pmsa/public_html/apps/shajara -> /mnt/home-storage/home/pmsa/apps/shajara
+/mnt/home-storage/home/pmsa/apps/shajara
+
+[application_path]
+total 20
+drwxr-xr-x  5 pmsa pmsa   99 Jul 15 20:55 .
+drwxr-x--- 19 pmsa pmsa 4096 Jul 15 20:45 ..
+-rw-r--r--  1 pmsa pmsa  704 Jul 15 20:55 .htaccess
+-rw-r--r--  1 pmsa pmsa 1253 Jul 15 20:55 README.md
+drwxr-xr-x  2 pmsa pmsa   38 Jul 15 20:55 assets
+drwxr-xr-x  2 pmsa pmsa   23 Jul 15 20:55 data
+-rw-r--r--  1 pmsa pmsa 4496 Jul 15 20:55 index.html
+drwxr-xr-x  2 pmsa pmsa   33 Jul 15 20:55 scripts
