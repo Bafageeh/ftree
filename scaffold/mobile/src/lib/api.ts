@@ -1,9 +1,13 @@
 import Constants from 'expo-constants';
 
 import type {
+  ChartReading,
+  ChartReadingStats,
   LineageResponse,
+  PaginatedChartReadings,
   PaginatedPeople,
   Person,
+  ReadingStatus,
   ReviewRequestPayload,
   ReviewRequestResponse,
   ReviewRequestStatus,
@@ -128,6 +132,17 @@ export async function getLineage(id: number): Promise<LineageResponse> {
       path_text: path.map((item) => item.full_name).join(' ← '),
     };
   }
+}
+
+export async function getChartReadings(status: ReadingStatus | '' = ''): Promise<ChartReading[]> {
+  const params = new URLSearchParams({ per_page: '200' });
+  if (status) params.set('status', status);
+  const result = await request<PaginatedChartReadings>(`/chart-readings?${params.toString()}`);
+  return result.data;
+}
+
+export function getChartReadingStats(): Promise<ChartReadingStats> {
+  return request<ChartReadingStats>('/chart-readings-stats');
 }
 
 export function submitReviewRequest(payload: ReviewRequestPayload): Promise<ReviewRequestResponse> {
