@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ChartReadingController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\PersonController;
 use App\Http\Controllers\Api\ReviewRequestController;
@@ -11,6 +12,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/people', [PersonController::class, 'index']);
     Route::get('/people/{person}', [PersonController::class, 'show']);
     Route::get('/people/{person}/lineage', [PersonController::class, 'lineage']);
+
+    Route::get('/chart-readings', [ChartReadingController::class, 'index']);
+    Route::get('/chart-readings-stats', [ChartReadingController::class, 'stats']);
 
     Route::post('/review-requests', [ReviewRequestController::class, 'store'])
         ->middleware('throttle:10,1');
