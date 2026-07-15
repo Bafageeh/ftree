@@ -71,7 +71,7 @@ jobs:
             "$SERVER_USER@$SERVER_HOST" \
             "mkdir -p '$APP_PATH'"
 
-      - name: Upload application
+      - name: Upload application to requested path
         shell: bash
         env:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
@@ -89,7 +89,7 @@ jobs:
             ./ \
             "$SERVER_USER@$SERVER_HOST:$APP_PATH/"
 
-      - name: Sync cPanel document root
+      - name: Link cPanel document root to requested path
         shell: bash
         env:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
@@ -105,7 +105,15 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -p "$SERVER_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "set -e; mkdir -p '$WEB_ROOT'; rsync -a --delete '$APP_PATH/' '$WEB_ROOT/'; chown -R pmsa:pmsa '$WEB_ROOT'; find '$WEB_ROOT' -type d -exec chmod 0755 {} +; find '$WEB_ROOT' -type f -exec chmod 0644 {} +"
+            "set -e; \
+             chown -R pmsa:pmsa '$APP_PATH'; \
+             find '$APP_PATH' -type d -exec chmod 0755 {} +; \
+             find '$APP_PATH' -type f -exec chmod 0644 {} +; \
+             mkdir -p \"\$(dirname '$WEB_ROOT')\"; \
+             if [ -L '$WEB_ROOT' ]; then rm -f '$WEB_ROOT'; \
+             elif [ -e '$WEB_ROOT' ]; then mv '$WEB_ROOT' \"${WEB_ROOT}.backup.\$(date +%Y%m%d%H%M%S)\"; fi; \
+             ln -s '$APP_PATH' '$WEB_ROOT'; \
+             chown -h pmsa:pmsa '$WEB_ROOT'"
 
       - name: Verify deployment
         shell: bash
@@ -123,4 +131,4 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -p "$SERVER_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "test -s '$APP_PATH/index.html' && test -s '$WEB_ROOT/index.html' && test -s '$WEB_ROOT/assets/app.js' && echo 'Deployment verified: $WEB_ROOT'"
+            "test -s '$APP_PATH/index.html' && test -L '$WEB_ROOT' && test \"\$(readlink -f '$WEB_ROOT')\" = \"\$(readlink -f '$APP_PATH')\" && test -s '$WEB_ROOT/assets/app.js' && echo 'Deployment verified: project lives at $APP_PATH'"
