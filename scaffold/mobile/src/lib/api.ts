@@ -24,9 +24,9 @@ const sourceReference = 'مشجرة أصول السادة آل باعلوي - ا
 const fallbackSummary = 'بيان تأسيسي من المشجرة الأصلية، ويظل خاضعًا للمراجعة العلمية وربط المصادر.';
 const fallbackChartReadingStats: ChartReadingStats = {
   total: 39,
-  readable: 26,
+  readable: 29,
   review: 9,
-  unclear: 4,
+  unclear: 1,
   promoted: 0,
 };
 
