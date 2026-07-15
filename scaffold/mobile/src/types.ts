@@ -25,6 +25,7 @@ export type Stats = {
   review: number;
   unclear: number;
   generations: number;
+  branches?: number;
 };
 
 export type PaginatedPeople = {
