@@ -2,6 +2,14 @@ name: Bootstrap Laravel and Mobile
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/bootstrap-stack.yml
+      - scripts/bootstrap-stack.sh
+      - scaffold/api/**
+      - scaffold/mobile/**
 
 permissions:
   contents: read
