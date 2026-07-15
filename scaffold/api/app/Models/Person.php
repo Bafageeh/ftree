@@ -13,12 +13,17 @@ class Person extends Model
 
     protected $fillable = [
         'full_name',
+        'node_type',
         'honorific',
         'lineage_parent_id',
         'status',
+        'chart_branch',
+        'chart_color',
         'generation',
         'summary',
         'source_reference',
+        'source_locator',
+        'chart_order',
         'is_living',
     ];
 
@@ -26,6 +31,7 @@ class Person extends Model
     {
         return [
             'generation' => 'integer',
+            'chart_order' => 'integer',
             'is_living' => 'boolean',
         ];
     }
@@ -37,6 +43,10 @@ class Person extends Model
 
     public function children(): HasMany
     {
-        return $this->hasMany(self::class, 'lineage_parent_id')->orderBy('generation')->orderBy('full_name');
+        return $this->hasMany(self::class, 'lineage_parent_id')
+            ->orderByRaw('chart_order is null')
+            ->orderBy('chart_order')
+            ->orderBy('generation')
+            ->orderBy('full_name');
     }
 }
