@@ -1,0 +1,78 @@
+name: Provision Shajara Domain
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/provision-domain.sh
+      - .github/workflows/provision-domain.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-domain-production
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    name: Create shajara.pm.sa
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate production settings
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in SERVER_HOST SERVER_PORT SERVER_USER SSH_PRIVATE_KEY_B64 SSH_KNOWN_HOSTS; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required production value: $name"
+              exit 1
+            fi
+          done
+
+          if [[ "$SERVER_USER" != "root" ]]; then
+            echo "Domain provisioning requires SERVER_USER=root."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Provision cPanel domain
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -p "$SERVER_PORT" \
+            "$SERVER_USER@$SERVER_HOST" \
+            'bash -s' < scripts/provision-domain.sh
