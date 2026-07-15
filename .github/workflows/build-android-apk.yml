@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Build installable Android APK
+    name: Build standalone Android release APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -72,6 +72,38 @@ jobs:
           test -s android/gradle/wrapper/gradle-wrapper.properties
           test -s android/gradlew
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('android/app/build.gradle')
+          text = path.read_text()
+          marker = 'release {'
+          start = text.find(marker)
+          if start < 0:
+              raise SystemExit('Could not find the Android release build type.')
+
+          brace = text.find('{', start)
+          depth = 0
+          end = None
+          for index in range(brace, len(text)):
+              if text[index] == '{':
+                  depth += 1
+              elif text[index] == '}':
+                  depth -= 1
+                  if depth == 0:
+                      end = index
+                      break
+
+          if end is None:
+              raise SystemExit('Could not parse the Android release build type.')
+
+          block = text[brace:end]
+          if 'signingConfig' not in block:
+              insertion = '\n            signingConfig signingConfigs.debug'
+              text = text[:brace + 1] + insertion + text[brace + 1:]
+              path.write_text(text)
+          PY
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -84,7 +116,7 @@ jobs:
           gradle-version: wrapper
           cache-read-only: false
 
-      - name: Build installable APK
+      - name: Build standalone release APK
         working-directory: shajara-mobile/android
         shell: bash
         env:
@@ -92,25 +124,33 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Prepare APK artifact
+      - name: Verify and prepare APK artifact
         shell: bash
         run: |
           set -euo pipefail
-          APK_SOURCE='shajara-mobile/android/app/build/outputs/apk/debug/app-debug.apk'
+          APK_SOURCE='shajara-mobile/android/app/build/outputs/apk/release/app-release.apk'
           test -s "$APK_SOURCE"
-          cp "$APK_SOURCE" Shajara-Android.apk
-          ls -lh Shajara-Android.apk
-          sha256sum Shajara-Android.apk > Shajara-Android.apk.sha256
 
-      - name: Upload APK
+          unzip -l "$APK_SOURCE" | tee apk-contents.txt
+          grep -q 'assets/index.android.bundle' apk-contents.txt
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK_SOURCE"
+
+          cp "$APK_SOURCE" Shajara-Android-Release.apk
+          ls -lh Shajara-Android-Release.apk
+          sha256sum Shajara-Android-Release.apk > Shajara-Android-Release.apk.sha256
+
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Shajara-Android-APK
+          name: Shajara-Android-Release-APK
           path: |
-            Shajara-Android.apk
-            Shajara-Android.apk.sha256
+            Shajara-Android-Release.apk
+            Shajara-Android-Release.apk.sha256
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
