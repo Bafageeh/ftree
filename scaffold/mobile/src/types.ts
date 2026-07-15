@@ -1,4 +1,5 @@
 export type ReadingStatus = 'readable' | 'review' | 'unclear';
+export type ReviewRequestType = 'correction' | 'addition' | 'source';
 
 export type Person = {
   id: number;
@@ -33,4 +34,31 @@ export type LineageResponse = {
   person: Person;
   path: Person[];
   path_text: string;
+};
+
+export type ReviewRequestPayload = {
+  person_id?: number | null;
+  request_type: ReviewRequestType;
+  requester_name: string;
+  requester_phone?: string;
+  person_name?: string;
+  proposed_value: string;
+  source_details?: string;
+  notes?: string;
+};
+
+export type ReviewRequestResponse = {
+  message: string;
+  tracking_code: string;
+  status: string;
+  submitted_at?: string | null;
+};
+
+export type ReviewRequestStatus = {
+  tracking_code: string;
+  request_type: ReviewRequestType;
+  person_name?: string | null;
+  status: string;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
 };
