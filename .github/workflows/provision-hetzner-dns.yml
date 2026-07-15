@@ -52,9 +52,8 @@ jobs:
           zone_id="$(printf '%s' "$zones_json" | python3 -c '
           import json,sys
           data=json.load(sys.stdin)
-          zones=data.get("zones", [])
           wanted="pm.sa"
-          for zone in zones:
+          for zone in data.get("zones", []):
               if zone.get("name") == wanted:
                   print(zone.get("id", ""))
                   break
@@ -75,10 +74,10 @@ jobs:
                   break
           ')"
 
-          payload="$(python3 - <<'PY'
+          payload="$(ZONE_ID="$zone_id" python3 - <<'PY'
           import json,os
           print(json.dumps({
-              "zone_id": os.environ["zone_id"],
+              "zone_id": os.environ["ZONE_ID"],
               "type": os.environ["RECORD_TYPE"],
               "name": os.environ["RECORD_NAME"],
               "value": os.environ["RECORD_VALUE"],
@@ -96,8 +95,12 @@ jobs:
           fi
 
           echo "DNS record configured: $RECORD_NAME.$ZONE_NAME -> $RECORD_VALUE"
-        env:
-          zone_id: ${{ env.zone_id }}
+
+      - name: Install DNS tools
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dnsutils
 
       - name: Wait for public DNS
         shell: bash
