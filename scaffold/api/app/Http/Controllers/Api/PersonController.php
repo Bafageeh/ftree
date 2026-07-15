@@ -20,13 +20,18 @@ class PersonController extends Controller
                 $query->where(function ($nested) use ($search) {
                     $nested->where('full_name', 'like', "%{$search}%")
                         ->orWhere('honorific', 'like', "%{$search}%")
-                        ->orWhere('summary', 'like', "%{$search}%");
+                        ->orWhere('summary', 'like', "%{$search}%")
+                        ->orWhere('source_locator', 'like', "%{$search}%");
                 });
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('branch'), fn ($query) => $query->where('chart_branch', $request->string('branch')))
+            ->when($request->filled('node_type'), fn ($query) => $query->where('node_type', $request->string('node_type')))
+            ->orderByRaw('chart_order is null')
+            ->orderBy('chart_order')
             ->orderBy('generation')
             ->orderBy('id')
-            ->paginate(min(max((int) $request->integer('per_page', 50), 1), 100));
+            ->paginate(min(max((int) $request->integer('per_page', 50), 1), 250));
 
         return PersonResource::collection($people);
     }
@@ -63,6 +68,11 @@ class PersonController extends Controller
             'review' => Person::where('status', 'review')->count(),
             'unclear' => Person::where('status', 'unclear')->count(),
             'generations' => Person::max('generation') ?? 0,
+            'branches' => Person::query()
+                ->whereNotNull('chart_branch')
+                ->where('chart_branch', '!=', 'central_trunk')
+                ->distinct('chart_branch')
+                ->count('chart_branch'),
         ]);
     }
 }
