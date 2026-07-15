@@ -20,32 +20,39 @@ const configuredUrl = process.env.EXPO_PUBLIC_API_URL
 
 export const API_URL = String(configuredUrl).replace(/\/$/, '');
 
+const sourceReference = 'مشجرة أصول السادة آل باعلوي - الصفحة الوحيدة';
+const fallbackSummary = 'بيان تأسيسي من المشجرة الأصلية، ويظل خاضعًا للمراجعة العلمية وربط المصادر.';
+
 const fallbackPeople: Person[] = [
-  ['محمد ﷺ', 'رسول الله ﷺ', null, 'readable'],
-  ['فاطمة الزهراء', 'رضي الله عنها', 1, 'readable'],
-  ['الحسين السبط', 'رضي الله عنه', 2, 'readable'],
-  ['علي زين العابدين', null, 3, 'readable'],
-  ['محمد الباقر', null, 4, 'readable'],
-  ['جعفر الصادق', null, 5, 'readable'],
-  ['علي العريضي', null, 6, 'review'],
-  ['محمد النقيب', null, 7, 'review'],
-  ['عيسى النقيب', null, 8, 'review'],
-  ['أحمد المهاجر', null, 9, 'readable'],
-  ['عبيد الله', null, 10, 'review'],
-  ['علوي', null, 11, 'review'],
-  ['محمد', null, 12, 'review'],
-  ['علوي', null, 13, 'review'],
-  ['علي خالع قسم', null, 14, 'review'],
-  ['محمد صاحب مرباط', null, 15, 'review'],
-].map(([full_name, honorific, lineage_parent_id, status], index) => ({
-  id: index + 1,
-  full_name: String(full_name),
-  honorific: honorific ? String(honorific) : null,
-  lineage_parent_id: lineage_parent_id ? Number(lineage_parent_id) : null,
-  status: status as Person['status'],
-  generation: index + 1,
-  summary: 'بيان أولي يحتاج إلى المطابقة مع المشجرة والمصادر المعتمدة.',
-  source_reference: 'المشجرة الأصلية',
+  { id: 1, full_name: 'محمد ﷺ', honorific: 'رسول الله ﷺ', lineage_parent_id: null, status: 'readable', generation: 1, chart_branch: 'central_trunk', chart_order: 1 },
+  { id: 2, full_name: 'فاطمة الزهراء', honorific: 'رضي الله عنها', lineage_parent_id: 1, status: 'readable', generation: 2, chart_branch: 'central_trunk', chart_order: 2 },
+  { id: 3, full_name: 'الحسين السبط', honorific: 'رضي الله عنه', lineage_parent_id: 2, status: 'readable', generation: 3, chart_branch: 'central_trunk', chart_order: 3 },
+  { id: 4, full_name: 'علي زين العابدين', lineage_parent_id: 3, status: 'readable', generation: 4, chart_branch: 'central_trunk', chart_order: 4 },
+  { id: 5, full_name: 'محمد الباقر', lineage_parent_id: 4, status: 'readable', generation: 5, chart_branch: 'central_trunk', chart_order: 5 },
+  { id: 6, full_name: 'جعفر الصادق', lineage_parent_id: 5, status: 'readable', generation: 6, chart_branch: 'central_trunk', chart_order: 6 },
+  { id: 7, full_name: 'علي العريضي', lineage_parent_id: 6, status: 'readable', generation: 7, chart_branch: 'central_trunk', chart_order: 7 },
+  { id: 8, full_name: 'محمد النقيب', lineage_parent_id: 7, status: 'readable', generation: 8, chart_branch: 'central_trunk', chart_order: 8 },
+  { id: 9, full_name: 'عيسى النقيب', lineage_parent_id: 8, status: 'readable', generation: 9, chart_branch: 'central_trunk', chart_order: 9 },
+  { id: 10, full_name: 'أحمد المهاجر', lineage_parent_id: 9, status: 'readable', generation: 10, chart_branch: 'central_trunk', chart_order: 10 },
+  { id: 11, full_name: 'عبيد الله', lineage_parent_id: 10, status: 'readable', generation: 11, chart_branch: 'central_trunk', chart_order: 11 },
+  { id: 12, full_name: 'علوي', lineage_parent_id: 11, status: 'readable', generation: 12, chart_branch: 'central_trunk', chart_order: 12 },
+  { id: 13, full_name: 'محمد', lineage_parent_id: 12, status: 'readable', generation: 13, chart_branch: 'central_trunk', chart_order: 13 },
+  { id: 14, full_name: 'علوي', lineage_parent_id: 13, status: 'readable', generation: 14, chart_branch: 'central_trunk', chart_order: 14 },
+  { id: 15, full_name: 'علي خالع قسم', lineage_parent_id: 14, status: 'readable', generation: 15, chart_branch: 'central_trunk', chart_order: 15 },
+  { id: 16, full_name: 'محمد صاحب مرباط', lineage_parent_id: 15, status: 'readable', generation: 16, chart_branch: 'central_trunk', chart_order: 16 },
+  { id: 17, full_name: 'علي بن محمد صاحب مرباط', honorific: 'والد الفقيه المقدم', lineage_parent_id: 16, status: 'readable', generation: 17, chart_branch: 'central_trunk', chart_order: 17 },
+  { id: 18, full_name: 'محمد الفقيه المقدم', lineage_parent_id: 17, status: 'readable', generation: 18, chart_branch: 'central_trunk', chart_order: 18 },
+  { id: 19, full_name: 'علوي بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'alawi_faqih', chart_order: 19 },
+  { id: 20, full_name: 'علي بن علوي بن الفقيه المقدم', lineage_parent_id: 19, status: 'readable', generation: 20, chart_branch: 'ali_alawi_faqih', chart_order: 20 },
+  { id: 21, full_name: 'عبد الله بن علوي بن الفقيه المقدم', lineage_parent_id: 19, status: 'readable', generation: 20, chart_branch: 'abdullah_alawi_faqih', chart_order: 21 },
+  { id: 22, full_name: 'أحمد بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'ahmad_faqih', chart_order: 22 },
+  { id: 23, full_name: 'علي بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'ali_faqih', chart_order: 23 },
+  { id: 24, full_name: 'عبد الرحمن بن الفقيه المقدم', lineage_parent_id: 18, status: 'readable', generation: 19, chart_branch: 'abdulrahman_faqih', chart_order: 24 },
+].map((person) => ({
+  ...person,
+  node_type: 'person',
+  summary: fallbackSummary,
+  source_reference: sourceReference,
   is_living: false,
 }));
 
@@ -115,7 +122,8 @@ export async function getStats(): Promise<Stats> {
       readable: fallbackPeople.filter((person) => person.status === 'readable').length,
       review: fallbackPeople.filter((person) => person.status === 'review').length,
       unclear: fallbackPeople.filter((person) => person.status === 'unclear').length,
-      generations: fallbackPeople.length,
+      generations: Math.max(...fallbackPeople.map((person) => person.generation)),
+      branches: new Set(fallbackPeople.map((person) => person.chart_branch).filter(Boolean)).size,
     };
   }
 }
@@ -124,10 +132,20 @@ export async function getLineage(id: number): Promise<LineageResponse> {
   try {
     return await request<LineageResponse>(`/people/${id}/lineage`);
   } catch {
-    const path = fallbackPeople.filter((person) => person.id <= id);
-    const person = fallbackPeople.find((item) => item.id === id) ?? fallbackPeople[0];
+    const byId = new Map(fallbackPeople.map((person) => [person.id, person]));
+    const path: Person[] = [];
+    let person = byId.get(id) ?? fallbackPeople[0];
+    const selected = person;
+    const visited = new Set<number>();
+
+    while (person && !visited.has(person.id)) {
+      path.unshift(person);
+      visited.add(person.id);
+      person = person.lineage_parent_id ? byId.get(person.lineage_parent_id) : undefined;
+    }
+
     return {
-      person,
+      person: selected,
       path,
       path_text: path.map((item) => item.full_name).join(' ← '),
     };
