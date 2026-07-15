@@ -7,6 +7,11 @@ on:
       - main
     paths:
       - .github/workflows/repair-runtime.yml
+      - scaffold/api/database/migrations/**
+      - scaffold/api/database/seeders/**
+      - scaffold/api/app/Models/ChartReading.php
+      - scaffold/api/app/Http/Controllers/Api/ChartReadingController.php
+      - scaffold/api/routes/api.php
 
 permissions:
   contents: read
@@ -61,11 +66,11 @@ jobs:
           test -s "$MOBILE_PATH/package.json"
 
           # Avoid racing with the full bootstrap job.
-          for _ in $(seq 1 40); do
+          for _ in $(seq 1 60); do
             if ! pgrep -f '[b]ootstrap-stack.sh' >/dev/null 2>&1; then
               break
             fi
-            sleep 15
+            sleep 10
           done
 
           cd "$API_PATH"
@@ -77,17 +82,38 @@ jobs:
           php artisan view:cache
 
           PEOPLE_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::count();" 2>/dev/null | tr -cd '0-9')
+          READING_COUNT=$(php artisan tinker --execute="echo App\\Models\\ChartReading::count();" 2>/dev/null | tr -cd '0-9')
+
           echo "People in database: ${PEOPLE_COUNT:-unknown}"
+          echo "Chart readings in database: ${READING_COUNT:-unknown}"
+
           if [ -z "${PEOPLE_COUNT:-}" ] || [ "$PEOPLE_COUNT" -lt 24 ]; then
-            echo "Expected at least 24 people after seeding."
+            echo "Expected at least 24 approved people after seeding."
+            exit 1
+          fi
+
+          if [ -z "${READING_COUNT:-}" ] || [ "$READING_COUNT" -lt 39 ]; then
+            echo "Expected at least 39 chart readings after migration and seeding."
             exit 1
           fi
 
           if command -v curl >/dev/null 2>&1; then
-            echo 'Local API response:'
-            curl -ksS --resolve shajara.pm.sa:443:127.0.0.1 \
+            echo 'Local approved-tree API response:'
+            curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
               https://shajara.pm.sa/api/v1/stats
             echo
+
+            echo 'Local chart-reading API response:'
+            STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
+              https://shajara.pm.sa/api/v1/chart-readings-stats)
+            printf '%s\n' "$STATS_JSON"
+            php -r '
+              $data = json_decode($argv[1], true);
+              if (!is_array($data) || ($data["total"] ?? 0) < 39) {
+                  fwrite(STDERR, "Chart-reading stats API did not return at least 39 records.\n");
+                  exit(1);
+              }
+            ' "$STATS_JSON"
           fi
 
           if [ -x /usr/local/cpanel/bin/autossl_check ]; then
