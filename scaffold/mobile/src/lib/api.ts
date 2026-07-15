@@ -23,10 +23,10 @@ export const API_URL = String(configuredUrl).replace(/\/$/, '');
 const sourceReference = 'مشجرة أصول السادة آل باعلوي - الصفحة الوحيدة';
 const fallbackSummary = 'بيان تأسيسي من المشجرة الأصلية، ويظل خاضعًا للمراجعة العلمية وربط المصادر.';
 const fallbackChartReadingStats: ChartReadingStats = {
-  total: 136,
-  readable: 109,
-  review: 22,
-  unclear: 5,
+  total: 156,
+  readable: 125,
+  review: 24,
+  unclear: 7,
   promoted: 0,
 };
 
@@ -169,7 +169,7 @@ export async function getChartReadings(status: ReadingStatus | '' = ''): Promise
 export async function getChartReadingStats(): Promise<ChartReadingStats> {
   try {
     const stats = await request<ChartReadingStats>('/chart-readings-stats');
-    if (stats.total < 136) {
+    if (stats.total < 156) {
       return fallbackChartReadingStats;
     }
     return stats;
