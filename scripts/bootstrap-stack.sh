@@ -84,7 +84,12 @@ if [[ ! -s "$MOBILE_PATH/package.json" ]]; then
   CI=1 npx create-expo-app@latest "$MOBILE_PATH" --template default@sdk-57 --yes
 fi
 
-rsync -a "$SCAFFOLD_PATH/mobile/" "$MOBILE_PATH/"
+install -d "$MOBILE_PATH/app" "$MOBILE_PATH/src"
+rsync -a --delete "$SCAFFOLD_PATH/mobile/app/" "$MOBILE_PATH/app/"
+rsync -a --delete "$SCAFFOLD_PATH/mobile/src/" "$MOBILE_PATH/src/"
+cp "$SCAFFOLD_PATH/mobile/app.json" "$MOBILE_PATH/app.json"
+cp "$SCAFFOLD_PATH/mobile/.env.example" "$MOBILE_PATH/.env.example"
+
 cd "$MOBILE_PATH"
 npm install --no-audit --no-fund
 npx expo install --fix
