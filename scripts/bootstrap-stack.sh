@@ -71,7 +71,11 @@ fi
 rsync -a "$SCAFFOLD_PATH/api/" "$API_PATH/"
 
 "$COMPOSER_BIN" install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-php artisan key:generate --force
+
+if ! grep -Eq '^APP_KEY=base64:.+' .env; then
+  php artisan key:generate --force
+fi
+
 php artisan migrate --force
 php artisan db:seed --class=DatabaseSeeder --force
 php artisan optimize:clear
