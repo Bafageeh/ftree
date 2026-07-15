@@ -1,0 +1,120 @@
+name: Repair Shajara Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/repair-runtime.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-runtime-repair
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Seed database, verify API, restart Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Repair server runtime
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          API_PATH="$APP_PATH/shajara-api"
+          MOBILE_PATH="$APP_PATH/shajara-mobile"
+          LOG_PATH="$MOBILE_PATH/expo-8083.log"
+
+          test -s "$API_PATH/artisan"
+          test -s "$MOBILE_PATH/package.json"
+
+          # Avoid racing with the full bootstrap job.
+          for _ in $(seq 1 40); do
+            if ! pgrep -f '[b]ootstrap-stack.sh' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 15
+          done
+
+          cd "$API_PATH"
+          php artisan optimize:clear
+          php artisan migrate --force
+          php artisan db:seed --class=DatabaseSeeder --force
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+
+          PEOPLE_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::count();" 2>/dev/null | tr -cd '0-9')
+          echo "People in database: ${PEOPLE_COUNT:-unknown}"
+          if [ -z "${PEOPLE_COUNT:-}" ] || [ "$PEOPLE_COUNT" -lt 24 ]; then
+            echo "Expected at least 24 people after seeding."
+            exit 1
+          fi
+
+          if command -v curl >/dev/null 2>&1; then
+            echo 'Local API response:'
+            curl -ksS --resolve shajara.pm.sa:443:127.0.0.1 \
+              https://shajara.pm.sa/api/v1/stats
+            echo
+          fi
+
+          if [ -x /usr/local/cpanel/bin/autossl_check ]; then
+            /usr/local/cpanel/bin/autossl_check --user=pmsa || true
+          fi
+          if [ -x /scripts/rebuildhttpdconf ]; then
+            /scripts/rebuildhttpdconf
+          fi
+          if [ -x /scripts/restartsrv_httpd ]; then
+            /scripts/restartsrv_httpd
+          fi
+
+          pkill -f 'expo start.*8083' >/dev/null 2>&1 || true
+          fuser -k 8083/tcp >/dev/null 2>&1 || true
+          cd "$MOBILE_PATH"
+          : > "$LOG_PATH"
+          nohup npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
+          echo $! > "$MOBILE_PATH/expo-8083.pid"
+
+          for _ in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8083/status >/dev/null 2>&1; then
+              echo 'Expo Metro is ready on port 8083.'
+              exit 0
+            fi
+            sleep 2
+          done
+
+          tail -n 120 "$LOG_PATH" || true
+          exit 1
+          REMOTE
