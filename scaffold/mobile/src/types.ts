@@ -1,6 +1,6 @@
 export type ReadingStatus = 'readable' | 'review' | 'unclear';
 export type ReviewRequestType = 'correction' | 'addition' | 'source';
-export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'unknown';
+export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'branch_label' | 'unknown';
 
 export type Person = {
   id: number;
@@ -41,6 +41,38 @@ export type LineageResponse = {
   person: Person;
   path: Person[];
   path_text: string;
+};
+
+export type ChartReading = {
+  id: number;
+  source_key: string;
+  provisional_name: string;
+  normalized_name?: string | null;
+  parent_source_key?: string | null;
+  chart_branch?: string | null;
+  chart_color?: string | null;
+  node_type: GenealogyNodeType;
+  reading_status: ReadingStatus;
+  confidence: number;
+  source_locator?: string | null;
+  notes?: string | null;
+  is_promoted: boolean;
+  person_id?: number | null;
+};
+
+export type PaginatedChartReadings = {
+  data: ChartReading[];
+  current_page?: number;
+  last_page?: number;
+  total?: number;
+};
+
+export type ChartReadingStats = {
+  total: number;
+  readable: number;
+  review: number;
+  unclear: number;
+  promoted: number;
 };
 
 export type ReviewRequestPayload = {
