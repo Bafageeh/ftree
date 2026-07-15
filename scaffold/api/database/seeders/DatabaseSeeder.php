@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\ChartReading;
 use App\Models\Person;
 use Illuminate\Database\Seeder;
 
@@ -67,6 +68,49 @@ class DatabaseSeeder extends Seeder
             $person->save();
 
             $records[$node['key']] = $person;
+        }
+
+        // قراءات الفروع تحفظ أولًا في طابور مستقل حتى لا تُعتمد علاقة نسب غير محسومة.
+        $readings = [
+            ['source_key' => 'g-attas-abdulrahman', 'name' => 'عبد الرحمن العطاس', 'parent' => null, 'type' => 'branch_label', 'status' => 'readable', 'confidence' => 99, 'locator' => 'الفرع الأخضر الأيسر - الورقة الأولى - الورقة الكبيرة الوسطى', 'notes' => 'الاسم واللقب واضحان.'],
+            ['source_key' => 'g-attas-omar', 'name' => 'عمر العطاس', 'parent' => 'g-attas-abdulrahman', 'type' => 'person', 'status' => 'readable', 'confidence' => 97, 'locator' => 'الفرع الأخضر الأيسر - الورقة الأولى - البيضاوي الأيمن', 'notes' => 'السهم يتجه نحو عبد الرحمن العطاس.'],
+            ['source_key' => 'g-attas-aqil', 'name' => 'عقيل', 'parent' => 'g-attas-abdulrahman', 'type' => 'person', 'status' => 'readable', 'confidence' => 94, 'locator' => 'الفرع الأخضر الأيسر - الورقة الأولى - البيضاوي الأوسط', 'notes' => 'الاسم واضح، ويحتاج تأكيد ترتيب العلاقة.'],
+            ['source_key' => 'g-attas-ahmad', 'name' => 'أحمد', 'parent' => 'g-attas-abdulrahman', 'type' => 'person', 'status' => 'readable', 'confidence' => 94, 'locator' => 'الفرع الأخضر الأيسر - الورقة الأولى - البيضاوي الأيمن الخارجي', 'notes' => 'الاسم واضح، ويحتاج تأكيد ترتيب العلاقة.'],
+
+            ['source_key' => 'g-abu-futaym-muhammad', 'name' => 'محمد جد آل أبو فطيم', 'parent' => null, 'type' => 'branch_label', 'status' => 'review', 'confidence' => 82, 'locator' => 'الفرع الأخضر الأيسر - الورقة الثانية - الورقة الكبيرة العليا', 'notes' => 'محمد وجد آل واضحان؛ ضبط لقب أبو فطيم يحتاج مراجعة على الأصل.'],
+            ['source_key' => 'g-abu-futaym-abubakr', 'name' => 'أبو بكر', 'parent' => 'g-abu-futaym-muhammad', 'type' => 'person', 'status' => 'readable', 'confidence' => 96, 'locator' => 'الفرع الأخضر الأيسر - الورقة الثانية - البيضاوي العلوي', 'notes' => null],
+            ['source_key' => 'g-abu-futaym-abdullah', 'name' => 'عبد الله', 'parent' => 'g-abu-futaym-muhammad', 'type' => 'person', 'status' => 'readable', 'confidence' => 96, 'locator' => 'الفرع الأخضر الأيسر - الورقة الثانية - البيضاوي المجاور', 'notes' => null],
+
+            ['source_key' => 'g-masawi-ahmad', 'name' => 'أحمد المساوي', 'parent' => null, 'type' => 'branch_label', 'status' => 'review', 'confidence' => 86, 'locator' => 'الفرع الأخضر الأيسر - الورقة الرابعة - الورقة الكبيرة العليا', 'notes' => 'قراءة المساوي مرجحة وتحتاج مطابقة حرفية.'],
+            ['source_key' => 'g-masawi-taha', 'name' => 'طه', 'parent' => 'g-masawi-ahmad', 'type' => 'person', 'status' => 'readable', 'confidence' => 98, 'locator' => 'الفرع الأخضر الأيسر - الورقة الرابعة - البيضاوي أسفل الورقة', 'notes' => null],
+            ['source_key' => 'g-masawi-alawi-saqaf', 'name' => 'علوي بن السقاف', 'parent' => 'g-masawi-ahmad', 'type' => 'person', 'status' => 'review', 'confidence' => 88, 'locator' => 'الفرع الأخضر الأيسر - الورقة الرابعة - البيضاوي العلوي الأوسط', 'notes' => 'الاسم ظاهر، وتحتاج الباء في بن إلى تأكيد.'],
+
+            ['source_key' => 'g-baaqil-omar', 'name' => 'عمر جد آل باعقيل', 'parent' => null, 'type' => 'branch_label', 'status' => 'readable', 'confidence' => 95, 'locator' => 'الفرع الأخضر الأيسر - الورقة الخامسة - الورقة الكبيرة', 'notes' => 'العبارة واضحة في الصورة.'],
+            ['source_key' => 'g-shihab-ahmad', 'name' => 'أحمد جد آل شهاب', 'parent' => null, 'type' => 'branch_label', 'status' => 'review', 'confidence' => 84, 'locator' => 'الفرع الأخضر الأيسر - الورقة الخامسة - البيضاوي المؤرخ 996', 'notes' => 'العبارة مرجحة؛ الرقم 996 ظاهر ويحتاج تحديد نوع التاريخ.'],
+
+            ['source_key' => 'g-binsumayt-aqil', 'name' => 'عقيل جد آل بن سميط', 'parent' => null, 'type' => 'branch_label', 'status' => 'readable', 'confidence' => 96, 'locator' => 'الفرع الأخضر الأيسر - الورقة السادسة - الورقة الكبيرة العليا', 'notes' => 'العبارة واضحة.'],
+            ['source_key' => 'g-binsumayt-shaykh-saqaf', 'name' => 'شيخ السقاف', 'parent' => 'g-binsumayt-aqil', 'type' => 'person', 'status' => 'readable', 'confidence' => 94, 'locator' => 'الفرع الأخضر الأيسر - الورقة السادسة - البيضاوي العلوي الأوسط', 'notes' => null],
+            ['source_key' => 'g-binsumayt-abdulrahman', 'name' => 'عبد الرحمن', 'parent' => 'g-binsumayt-aqil', 'type' => 'person', 'status' => 'readable', 'confidence' => 94, 'locator' => 'الفرع الأخضر الأيسر - الورقة السادسة - البيضاوي العلوي الأيمن', 'notes' => 'العلاقة تحتاج متابعة السهم في الصورة الكاملة.'],
+        ];
+
+        foreach ($readings as $reading) {
+            ChartReading::updateOrCreate(
+                ['source_key' => $reading['source_key']],
+                [
+                    'provisional_name' => $reading['name'],
+                    'normalized_name' => $reading['status'] === 'readable' ? $reading['name'] : null,
+                    'parent_source_key' => $reading['parent'],
+                    'chart_branch' => 'ali_alawi_faqih',
+                    'chart_color' => '#8EDB79',
+                    'node_type' => $reading['type'],
+                    'reading_status' => $reading['status'],
+                    'confidence' => $reading['confidence'],
+                    'source_locator' => $reading['locator'],
+                    'notes' => $reading['notes'],
+                    'is_promoted' => false,
+                    'person_id' => null,
+                ]
+            );
         }
     }
 }
