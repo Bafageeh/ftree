@@ -92,9 +92,43 @@ cp "$SCAFFOLD_PATH/mobile/.env.example" "$MOBILE_PATH/.env.example"
 
 cd "$MOBILE_PATH"
 npm install --no-audit --no-fund
-npx expo install @expo/vector-icons expo-constants expo-router react-native-safe-area-context
+npx expo install \
+  @expo/vector-icons \
+  expo-constants \
+  expo-router \
+  react-native-safe-area-context \
+  react-dom \
+  react-native-web \
+  @expo/metro-runtime
 npx expo install --fix
 npx tsc --noEmit
+
+log "Exporting Expo Web for production."
+rm -rf "$MOBILE_PATH/dist"
+EXPO_PUBLIC_API_URL="https://shajara.pm.sa/api/v1" \
+  npx expo export --platform web --output-dir dist
+
+test -s "$MOBILE_PATH/dist/index.html" || fail "Expo Web export did not create dist/index.html."
+install -d "$API_PATH/public/app"
+rsync -a --delete "$MOBILE_PATH/dist/" "$API_PATH/public/app/"
+
+cat > "$API_PATH/public/app/.htaccess" <<'HTACCESS'
+DirectoryIndex index.html
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+HTACCESS
 
 log "Applying ownership and runtime permissions."
 chown -R "$CPANEL_USER:$CPANEL_USER" "$API_PATH" "$MOBILE_PATH"
@@ -120,14 +154,18 @@ fi
 cd "$API_PATH"
 php artisan route:list --path=api/v1
 
+test -s "$API_PATH/public/app/index.html" || fail "Published Expo Web index is missing."
+
 cat > "$ROOT_PATH/STACK_STATUS.txt" <<EOF
 Laravel API: $API_PATH
 React Native app: $MOBILE_PATH
+Expo Web: $API_PATH/public/app
 Public directory: $API_PATH/public
+Main URL: https://shajara.pm.sa/app/
 API health: https://shajara.pm.sa/api/v1/health
-Expo start: cd $MOBILE_PATH && npx expo start
+Expo start: cd $MOBILE_PATH && npx expo start --port 8083
 Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 chown "$CPANEL_USER:$CPANEL_USER" "$ROOT_PATH/STACK_STATUS.txt"
 
-log "Laravel and React Native environments are ready."
+log "Laravel, React Native, and Expo Web environments are ready."
