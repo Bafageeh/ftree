@@ -39,10 +39,6 @@ class ChartReading extends Model
     protected static function booted(): void
     {
         static::saved(function (ChartReading $reading): void {
-            if ($reading->is_promoted && $reading->person_id) {
-                return;
-            }
-
             if (! Schema::hasColumn('people', 'approval_status')) {
                 return;
             }
