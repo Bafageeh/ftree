@@ -182,6 +182,7 @@ npx expo install \
   expo-constants \
   expo-router \
   react-native-safe-area-context \
+  react-native-svg \
   react-dom \
   react-native-web \
   @expo/metro-runtime
