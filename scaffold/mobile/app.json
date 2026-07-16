@@ -31,7 +31,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "https://pm.sa/apps/shajara/api/v1"
+      "apiUrl": "https://shajara.pm.sa/api/v1"
     }
   }
 }
