@@ -1,1 +1,2 @@
-export { GenealogyEdgeTree as GenealogyTree } from './GenealogyEdgeTree';
+export { ModernGenealogyTree as GenealogyTree } from './ModernGenealogyTree';
+export type { TreeStatusFilter } from './ModernGenealogyTree';
