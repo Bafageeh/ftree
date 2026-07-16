@@ -2,6 +2,9 @@ import Constants from 'expo-constants';
 
 import { bundledPeople } from '../generated/bundledPeople';
 import type {
+  ChartEdge,
+  ChartEdgeResponse,
+  ChartEdgeStats,
   ChartReading,
   ChartReadingStats,
   LineageResponse,
@@ -50,11 +53,93 @@ const fallbackPeople = bundledPeople.length > coreFallback.length ? bundledPeopl
 const bundledProvisionalCount = bundledPeople.filter((person) => person.is_provisional).length;
 
 const fallbackChartReadingStats: ChartReadingStats = {
-  total: Math.max(196, bundledProvisionalCount),
-  readable: 165,
-  review: 24,
-  unclear: 7,
-  promoted: Math.max(196, bundledProvisionalCount),
+  total: Math.max(214, bundledProvisionalCount),
+  readable: 176,
+  review: 30,
+  unclear: 8,
+  promoted: Math.max(214, bundledProvisionalCount),
+};
+
+const fallbackChartEdges: ChartEdge[] = [
+  {
+    id: -1,
+    from_source_key: 'white-w007',
+    to_source_key: 'white-w006',
+    relation_type: 'lineage',
+    reading_status: 'readable',
+    confidence: 99,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأبيض - سلسلة المشهور',
+  },
+  {
+    id: -2,
+    from_source_key: 'white-w006',
+    to_source_key: 'white-w021',
+    relation_type: 'branch_founder',
+    reading_status: 'readable',
+    confidence: 99,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأبيض - ورقة محمد المشهور',
+  },
+  {
+    id: -3,
+    from_source_key: 'white-w009',
+    to_source_key: 'white-w022',
+    relation_type: 'branch_founder',
+    reading_status: 'readable',
+    confidence: 98,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأبيض - ورقة عبد الرحمن الشاطري',
+  },
+  {
+    id: -4,
+    from_source_key: 'blue-b007',
+    to_source_key: 'blue-b025',
+    relation_type: 'branch_founder',
+    reading_status: 'readable',
+    confidence: 96,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأزرق - ورقة سالم جد آل بن سهل والرويقي',
+  },
+  {
+    id: -5,
+    from_source_key: 'blue-b029',
+    to_source_key: 'blue-b027',
+    relation_type: 'branch_founder',
+    reading_status: 'readable',
+    confidence: 97,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأزرق - ورقة محمد البيض',
+  },
+  {
+    id: -6,
+    from_source_key: 'blue-b006',
+    to_source_key: 'blue-b026',
+    relation_type: 'branch_founder',
+    reading_status: 'review',
+    confidence: 82,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأزرق - ورقة محمد شروق',
+  },
+  {
+    id: -7,
+    from_source_key: 'blue-b020',
+    to_source_key: 'blue-b026',
+    relation_type: 'branch_founder',
+    reading_status: 'review',
+    confidence: 82,
+    approval_status: 'pending_supervisor',
+    source_locator: 'الفرع الأزرق - ورقة محمد شروق',
+  },
+];
+
+const fallbackChartEdgeStats: ChartEdgeStats = {
+  total: fallbackChartEdges.length,
+  readable: fallbackChartEdges.filter((edge) => edge.reading_status === 'readable').length,
+  review: fallbackChartEdges.filter((edge) => edge.reading_status === 'review').length,
+  unclear: fallbackChartEdges.filter((edge) => edge.reading_status === 'unclear').length,
+  confirmed: 0,
+  pending_supervisor: fallbackChartEdges.length,
 };
 
 type RequestOptions = { method?: 'GET' | 'POST'; body?: unknown };
@@ -154,6 +239,24 @@ export async function getChartReadingStats(): Promise<ChartReadingStats> {
     return stats.total < fallbackChartReadingStats.total ? fallbackChartReadingStats : stats;
   } catch {
     return fallbackChartReadingStats;
+  }
+}
+
+export async function getChartEdges(): Promise<ChartEdge[]> {
+  try {
+    const result = await request<ChartEdgeResponse>('/chart-edges');
+    return result.data.length >= fallbackChartEdges.length ? result.data : fallbackChartEdges;
+  } catch {
+    return fallbackChartEdges;
+  }
+}
+
+export async function getChartEdgeStats(): Promise<ChartEdgeStats> {
+  try {
+    const stats = await request<ChartEdgeStats>('/chart-edges-stats');
+    return stats.total >= fallbackChartEdgeStats.total ? stats : fallbackChartEdgeStats;
+  } catch {
+    return fallbackChartEdgeStats;
   }
 }
 
