@@ -13,10 +13,16 @@ class Person extends Model
 
     protected $fillable = [
         'full_name',
+        'source_code',
+        'chart_reading_id',
         'node_type',
         'honorific',
         'lineage_parent_id',
         'status',
+        'approval_status',
+        'is_provisional',
+        'supervisor_note',
+        'approved_at',
         'chart_branch',
         'chart_color',
         'generation',
@@ -33,6 +39,8 @@ class Person extends Model
             'generation' => 'integer',
             'chart_order' => 'integer',
             'is_living' => 'boolean',
+            'is_provisional' => 'boolean',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -48,5 +56,10 @@ class Person extends Model
             ->orderBy('chart_order')
             ->orderBy('generation')
             ->orderBy('full_name');
+    }
+
+    public function chartReading(): BelongsTo
+    {
+        return $this->belongsTo(ChartReading::class);
     }
 }
