@@ -109,7 +109,7 @@ npx tsc --noEmit
 
 log "Exporting Expo Web for production."
 rm -rf "$MOBILE_PATH/dist"
-EXPO_PUBLIC_API_URL="https://shajara.pm.sa/api/v1" \
+EXPO_PUBLIC_API_URL="https://pm.sa/apps/shajara/api/v1" \
   npx expo export --platform web --output-dir dist
 
 test -s "$MOBILE_PATH/dist/index.html" || fail "Expo Web export did not create dist/index.html."
@@ -166,7 +166,7 @@ React Native app: $MOBILE_PATH
 Expo Web: $API_PATH/public/app
 Public directory: $API_PATH/public
 Main URL: https://shajara.pm.sa/app/
-API health: https://shajara.pm.sa/api/v1/health
+Mobile API: https://pm.sa/apps/shajara/api/v1
 Expo start: cd $MOBILE_PATH && npx expo start --port 8083
 Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
