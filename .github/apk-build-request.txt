@@ -1,4 +1,4 @@
-Build requested: 2026-07-16T10:55:00+03:00
-Version: 1.0.2 (3)
-Reason: Retry after allowing CI snapshot download with current self-signed certificate
+Build requested: 2026-07-16T22:00:00+03:00
+Version: 1.0.3 (4)
+Reason: Build latest reviewed genealogy, modern interactive tree, and new Ali al-Faqih branch readings
 Artifact: Shajara-Android-Release-APK
