@@ -7,6 +7,7 @@ MOBILE_PATH="$ROOT_PATH/shajara-mobile"
 SCAFFOLD_PATH="$ROOT_PATH/scaffold"
 WEB_ROOT="/mnt/home-storage/home/pmsa/public_html/apps/shajara"
 CPANEL_USER="pmsa"
+PUBLIC_API_URL="https://shajara.pm.sa/api/v1"
 
 log() {
   printf '[shajara-bootstrap] %s\n' "$*"
@@ -76,9 +77,10 @@ if ! grep -Eq '^APP_KEY=base64:.+' .env; then
   php artisan key:generate --force
 fi
 
+php artisan optimize:clear
 php artisan migrate --force
 php artisan db:seed --class=DatabaseSeeder --force
-php artisan optimize:clear
+php artisan db:seed --class=ProvisionalPersonSeeder --force
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
@@ -93,6 +95,85 @@ rsync -a --delete "$SCAFFOLD_PATH/mobile/app/" "$MOBILE_PATH/app/"
 rsync -a --delete "$SCAFFOLD_PATH/mobile/src/" "$MOBILE_PATH/src/"
 cp "$SCAFFOLD_PATH/mobile/app.json" "$MOBILE_PATH/app.json"
 cp "$SCAFFOLD_PATH/mobile/.env.example" "$MOBILE_PATH/.env.example"
+printf 'EXPO_PUBLIC_API_URL=%s\n' "$PUBLIC_API_URL" > "$MOBILE_PATH/.env"
+
+log "Generating a complete local genealogy snapshot for Expo fallback."
+install -d "$MOBILE_PATH/src/generated"
+php - "$API_PATH" "$MOBILE_PATH/src/generated/bundledPeople.ts" <<'PHP'
+<?php
+
+use App\Models\Person;
+use Illuminate\Contracts\Console\Kernel;
+
+$apiPath = $argv[1];
+$outputPath = $argv[2];
+
+require $apiPath.'/vendor/autoload.php';
+$app = require $apiPath.'/bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
+
+$people = Person::query()
+    ->orderByRaw('chart_order is null')
+    ->orderBy('chart_order')
+    ->orderBy('id')
+    ->get()
+    ->map(static fn (Person $person): array => [
+        'id' => $person->id,
+        'full_name' => $person->full_name,
+        'source_code' => $person->source_code,
+        'chart_reading_id' => $person->chart_reading_id,
+        'node_type' => $person->node_type,
+        'honorific' => $person->honorific,
+        'lineage_parent_id' => $person->lineage_parent_id,
+        'status' => $person->status,
+        'approval_status' => $person->approval_status,
+        'is_provisional' => (bool) $person->is_provisional,
+        'supervisor_note' => $person->supervisor_note,
+        'approved_at' => $person->approved_at?->toISOString(),
+        'chart_branch' => $person->chart_branch,
+        'chart_color' => $person->chart_color,
+        'generation' => (int) $person->generation,
+        'summary' => $person->summary,
+        'source_reference' => $person->source_reference,
+        'source_locator' => $person->source_locator,
+        'chart_order' => $person->chart_order,
+        'is_living' => (bool) $person->is_living,
+    ])
+    ->values()
+    ->all();
+
+$pending = collect($people)->where('approval_status', 'pending_supervisor')->count();
+$confirmed = collect($people)->where('approval_status', 'supervisor_confirmed')->count();
+
+if (count($people) < 220 || $pending < 196 || $confirmed < 24) {
+    fwrite(STDERR, sprintf(
+        "Incomplete genealogy snapshot: total=%d pending=%d confirmed=%d\n",
+        count($people),
+        $pending,
+        $confirmed,
+    ));
+    exit(1);
+}
+
+$json = json_encode(
+    $people,
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
+);
+
+$content = "import type { Person } from '../types';\n\n".
+    "// مولدة تلقائيًا من قاعدة بيانات شجرة النسب أثناء النشر.\n".
+    "export const bundledPeople: Person[] = ".$json.";\n";
+
+if (file_put_contents($outputPath, $content) === false) {
+    fwrite(STDERR, "Unable to write Expo genealogy snapshot.\n");
+    exit(1);
+}
+
+printf("Generated Expo snapshot: total=%d pending=%d confirmed=%d\n", count($people), $pending, $confirmed);
+PHP
+
+test -s "$MOBILE_PATH/src/generated/bundledPeople.ts" || fail "Generated Expo people snapshot is missing."
+grep -q 'pending_supervisor' "$MOBILE_PATH/src/generated/bundledPeople.ts" || fail "Generated Expo snapshot has no pending-supervisor records."
 
 cd "$MOBILE_PATH"
 npm install --no-audit --no-fund
@@ -109,7 +190,7 @@ npx tsc --noEmit
 
 log "Exporting Expo Web for production."
 rm -rf "$MOBILE_PATH/dist"
-EXPO_PUBLIC_API_URL="https://pm.sa/apps/shajara/api/v1" \
+EXPO_PUBLIC_API_URL="$PUBLIC_API_URL" \
   npx expo export --platform web --output-dir dist
 
 test -s "$MOBILE_PATH/dist/index.html" || fail "Expo Web export did not create dist/index.html."
@@ -166,10 +247,12 @@ React Native app: $MOBILE_PATH
 Expo Web: $API_PATH/public/app
 Public directory: $API_PATH/public
 Main URL: https://shajara.pm.sa/app/
-Mobile API: https://pm.sa/apps/shajara/api/v1
+Mobile API: $PUBLIC_API_URL
+Expected people: 220+
+Expected pending supervisor: 196+
 Expo start: cd $MOBILE_PATH && npx expo start --port 8083
 Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 chown "$CPANEL_USER:$CPANEL_USER" "$ROOT_PATH/STACK_STATUS.txt"
 
-log "Laravel, React Native, and Expo Web environments are ready."
+log "Laravel, React Native, Expo Web, and the full coded genealogy snapshot are ready."
