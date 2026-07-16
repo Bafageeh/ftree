@@ -41,6 +41,53 @@ jobs:
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
 
+      - name: Repair Expo SVG dependency immediately
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          MOBILE_PATH="$APP_PATH/shajara-mobile"
+          LOG_PATH="$MOBILE_PATH/expo-8083.log"
+
+          test -s "$MOBILE_PATH/package.json"
+          cd "$MOBILE_PATH"
+          npm install --no-audit --no-fund
+          npx expo install react-native-svg
+          node -e "console.log(require.resolve('react-native-svg/package.json'))"
+
+          pkill -f 'expo start.*8083' >/dev/null 2>&1 || true
+          fuser -k 8083/tcp >/dev/null 2>&1 || true
+          rm -rf "$MOBILE_PATH/.expo" "$MOBILE_PATH/node_modules/.cache"
+          rm -rf /tmp/metro-* /tmp/haste-map-* 2>/dev/null || true
+
+          : > "$LOG_PATH"
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' \
+            npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
+              echo 'Expo Metro restarted with react-native-svg installed.'
+              tail -n 30 "$LOG_PATH" || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          tail -n 150 "$LOG_PATH" || true
+          exit 1
+          REMOTE
+
       - name: Upload scaffolding
         shell: bash
         env:
@@ -136,6 +183,7 @@ jobs:
           [ "$PENDING_COUNT" -ge 214 ]
           [ "$CONFIRMED_COUNT" -ge 24 ]
           grep -q 'pending_supervisor' "$MOBILE_PATH/src/generated/bundledPeople.ts"
+          node -e "console.log(require.resolve('react-native-svg/package.json'))"
 
           EDGE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/chart-edges-stats)
           php -r '
