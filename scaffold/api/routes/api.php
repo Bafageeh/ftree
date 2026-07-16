@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ChartEdgeController;
 use App\Http\Controllers\Api\ChartReadingController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\PersonController;
@@ -15,6 +16,8 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/chart-readings', [ChartReadingController::class, 'index']);
     Route::get('/chart-readings-stats', [ChartReadingController::class, 'stats']);
+    Route::get('/chart-edges', [ChartEdgeController::class, 'index']);
+    Route::get('/chart-edges-stats', [ChartEdgeController::class, 'stats']);
 
     Route::post('/review-requests', [ReviewRequestController::class, 'store'])
         ->middleware('throttle:10,1');
