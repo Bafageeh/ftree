@@ -51,14 +51,16 @@ jobs:
           set -euo pipefail
           mkdir -p shajara-mobile/src/generated
 
+          # The current shajara.pm.sa certificate is self-signed. This bypass is
+          # restricted to the CI snapshot download; the application still uses HTTPS.
           ready=0
           for attempt in $(seq 1 36); do
             echo "Snapshot attempt $attempt/36"
             rm -f people.json edges.json
 
-            if curl -fsSL --retry 2 --connect-timeout 15 --max-time 45 \
+            if curl --insecure -fsSL --retry 2 --connect-timeout 15 --max-time 45 \
               'https://shajara.pm.sa/api/v1/people?per_page=250' -o people.json \
-              && curl -fsSL --retry 2 --connect-timeout 15 --max-time 45 \
+              && curl --insecure -fsSL --retry 2 --connect-timeout 15 --max-time 45 \
               'https://shajara.pm.sa/api/v1/chart-edges?per_page=250' -o edges.json; then
               if node <<'NODE'
           const fs = require('fs');
