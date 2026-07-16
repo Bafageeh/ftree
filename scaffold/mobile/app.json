@@ -2,7 +2,7 @@
   "expo": {
     "name": "شجرة النسب الشريف",
     "slug": "shajara",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "shajara",
     "userInterfaceStyle": "light",
@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "sa.pm.shajara",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#F5F1E7"
       },
