@@ -14,17 +14,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GenealogyTree } from '../../src/components/GenealogyTree';
 import { PersonCard } from '../../src/components/PersonCard';
 import { getPeople } from '../../src/lib/api';
 import { colors, radius, shadow } from '../../src/theme';
 import type { ApprovalStatus, Person, ReadingStatus } from '../../src/types';
 
-type ViewMode = 'all' | 'confirmed';
+type ViewMode = 'tree' | 'index' | 'confirmed';
 type ApprovalFilter = '' | ApprovalStatus;
 
 const branchLabels: Record<string, string> = {
   central_trunk: 'الجذع الأوسط',
-  alawi_faqih: 'بداية فرع علوي بن الفقيه المقدم',
+  alawi_faqih: 'فرع علوي بن الفقيه المقدم',
   ali_alawi_faqih: 'فرع علي بن علوي بن الفقيه المقدم',
   abdullah_alawi_faqih: 'فرع عبد الله بن علوي بن الفقيه المقدم',
   ahmad_faqih: 'فرع أحمد بن الفقيه المقدم',
@@ -46,20 +47,22 @@ const approvalFilters: Array<{ value: ApprovalFilter; label: string }> = [
 ];
 
 export default function TreeScreen() {
-  const [mode, setMode] = useState<ViewMode>('all');
+  const [mode, setMode] = useState<ViewMode>('tree');
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState('');
   const [readingStatus, setReadingStatus] = useState<ReadingStatus | ''>('');
   const [approvalStatus, setApprovalStatus] = useState<ApprovalFilter>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
-    setPeople(await getPeople());
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      setPeople(await getPeople());
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -68,6 +71,11 @@ export default function TreeScreen() {
     () => people.filter((person) => person.approval_status === 'supervisor_confirmed' && !person.is_provisional),
     [people],
   );
+
+  const linkedCount = useMemo(() => {
+    const ids = new Set(people.map((person) => person.id));
+    return people.filter((person) => person.lineage_parent_id && ids.has(person.lineage_parent_id)).length;
+  }, [people]);
 
   const filteredPeople = useMemo(() => {
     const query = search.trim();
@@ -80,26 +88,15 @@ export default function TreeScreen() {
     });
   }, [approvalStatus, people, readingStatus, search]);
 
-  const centralTrunk = useMemo(
-    () => confirmedPeople
-      .filter((person) => person.chart_branch === 'central_trunk' || !person.chart_branch)
-      .sort(byChartOrder),
-    [confirmedPeople],
-  );
+  if (loading && people.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>
+      </SafeAreaView>
+    );
+  }
 
-  const branches = useMemo(() => {
-    const grouped = new Map<string, Person[]>();
-    confirmedPeople.forEach((person) => {
-      if (!person.chart_branch || person.chart_branch === 'central_trunk') return;
-      grouped.set(person.chart_branch, [...(grouped.get(person.chart_branch) ?? []), person]);
-    });
-
-    return [...grouped.entries()]
-      .map(([key, nodes]) => ({ key, nodes: nodes.sort(byChartOrder) }))
-      .sort((a, b) => (a.nodes[0]?.chart_order ?? 9999) - (b.nodes[0]?.chart_order ?? 9999));
-  }, [confirmedPeople]);
-
-  if (mode === 'all') {
+  if (mode === 'index') {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <FlatList
@@ -109,20 +106,11 @@ export default function TreeScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
           ListHeaderComponent={
             <>
-              <Header
-                mode={mode}
-                onModeChange={setMode}
-                allCount={people.length}
-                confirmedCount={confirmedPeople.length}
-              />
-
+              <Header mode={mode} onModeChange={setMode} allCount={people.length} confirmedCount={confirmedPeople.length} />
               <View style={styles.notice}>
-                <Ionicons name="information-circle" size={22} color="#8A661E" />
-                <Text style={styles.noticeText}>
-                  كل قراءة ظاهرة برمزها كما هي. غير المعتمد منها يحمل شارة «بانتظار اعتماد المشرف» ولا يُعد نسبًا نهائيًا.
-                </Text>
+                <Ionicons name="list" size={22} color="#8A661E" />
+                <Text style={styles.noticeText}>هذا فهرس للبحث والمراجعة فقط. للعرض الترابطي انتقل إلى «الشجرة».</Text>
               </View>
-
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={21} color={colors.muted} />
                 <TextInput
@@ -139,20 +127,10 @@ export default function TreeScreen() {
                   </Pressable>
                 )}
               </View>
-
-              <FilterRow
-                items={approvalFilters}
-                selected={approvalStatus}
-                onSelect={(value) => setApprovalStatus(value as ApprovalFilter)}
-              />
-              <FilterRow
-                items={readingFilters}
-                selected={readingStatus}
-                onSelect={(value) => setReadingStatus(value as ReadingStatus | '')}
-              />
-
+              <FilterRow items={approvalFilters} selected={approvalStatus} onSelect={(value) => setApprovalStatus(value as ApprovalFilter)} />
+              <FilterRow items={readingFilters} selected={readingStatus} onSelect={(value) => setReadingStatus(value as ReadingStatus | '')} />
               <View style={styles.resultsHeader}>
-                <Text style={styles.resultsTitle}>جميع الأسماء المرمزة</Text>
+                <Text style={styles.resultsTitle}>فهرس الأسماء المرمزة</Text>
                 <Text style={styles.resultsCount}>{filteredPeople.length} من {people.length}</Text>
               </View>
             </>
@@ -162,13 +140,13 @@ export default function TreeScreen() {
               <PersonCard person={item} onPress={() => router.push(`/person/${item.id}`)} />
             </View>
           )}
-          ListEmptyComponent={loading
-            ? <ActivityIndicator color={colors.primary} size="large" />
-            : <Text style={styles.empty}>لا توجد نتائج مطابقة.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>لا توجد نتائج مطابقة.</Text>}
         />
       </SafeAreaView>
     );
   }
+
+  const treePeople = mode === 'confirmed' ? confirmedPeople : people;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -176,66 +154,40 @@ export default function TreeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
       >
-        <Header
-          mode={mode}
-          onModeChange={setMode}
-          allCount={people.length}
-          confirmedCount={confirmedPeople.length}
-        />
+        <Header mode={mode} onModeChange={setMode} allCount={people.length} confirmedCount={confirmedPeople.length} />
 
-        {loading ? <ActivityIndicator color={colors.primary} size="large" /> : (
-          <>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.colorDot, { backgroundColor: '#B98249' }]} />
-              <Text style={styles.sectionTitle}>الجذع الأوسط المعتمد</Text>
-              <Text style={styles.resultsCount}>{centralTrunk.length}</Text>
-            </View>
-
-            <View style={styles.trunkCard}>
-              {centralTrunk.map((person, index) => (
-                <View key={person.id} style={styles.nodeWrap}>
-                  <PersonCard person={person} onPress={() => router.push(`/person/${person.id}`)} compact />
-                  {index < centralTrunk.length - 1 && <View style={styles.connector} />}
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.sectionHeaderBranches}>
-              <Text style={styles.sectionTitle}>الفروع المعتمدة</Text>
-              <Text style={styles.resultsCount}>{branches.length}</Text>
-            </View>
-
-            {branches.map((branch) => {
-              const expanded = expandedBranch === branch.key;
-              const first = branch.nodes[0];
-              return (
-                <View key={branch.key} style={styles.branchCard}>
-                  <Pressable
-                    onPress={() => setExpandedBranch(expanded ? null : branch.key)}
-                    style={styles.branchHeader}
-                  >
-                    <View style={[styles.branchColor, { backgroundColor: first?.chart_color || colors.primarySoft }]} />
-                    <View style={styles.branchTextWrap}>
-                      <Text style={styles.branchTitle}>{branchLabels[branch.key] ?? branch.key}</Text>
-                      <Text style={styles.branchMeta}>{branch.nodes.length} عقدة معتمدة</Text>
-                    </View>
-                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
-                  </Pressable>
-
-                  {expanded && (
-                    <View style={styles.branchNodes}>
-                      {branch.nodes.map((person) => (
-                        <View key={person.id} style={styles.cardGap}>
-                          <PersonCard person={person} onPress={() => router.push(`/person/${person.id}`)} compact />
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </>
+        {mode === 'tree' && (
+          <View style={styles.notice}>
+            <Ionicons name="git-network" size={22} color="#8A661E" />
+            <Text style={styles.noticeText}>
+              هذه هي الشجرة الترابطية. افتح أي فرع ثم وسّع الأبناء. العقد غير المربوطة تبقى ظاهرة للمشرف حتى يحدد أباها.
+            </Text>
+          </View>
         )}
+
+        {mode === 'confirmed' && (
+          <View style={styles.noticeGreen}>
+            <Ionicons name="shield-checkmark" size={22} color={colors.primary} />
+            <Text style={styles.noticeGreenText}>يعرض هذا القسم العلاقات التي اعتمدها المشرف فقط.</Text>
+          </View>
+        )}
+
+        <View style={styles.linkStatusCard}>
+          <View style={styles.linkStatusItem}>
+            <Text style={styles.linkStatusNumber}>{treePeople.length}</Text>
+            <Text style={styles.linkStatusLabel}>عقد ظاهرة</Text>
+          </View>
+          <View style={styles.linkStatusItem}>
+            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? Math.max(0, confirmedPeople.length - 1) : linkedCount}</Text>
+            <Text style={styles.linkStatusLabel}>علاقات أبوة</Text>
+          </View>
+          <View style={styles.linkStatusItem}>
+            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? 0 : Math.max(0, people.length - linkedCount - 1)}</Text>
+            <Text style={styles.linkStatusLabel}>تحتاج ربطًا</Text>
+          </View>
+        </View>
+
+        <GenealogyTree people={treePeople} branchLabels={branchLabels} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -256,29 +208,27 @@ function Header({
     <>
       <View style={styles.header}>
         <Text style={styles.title}>المشجرة الرقمية</Text>
-        <Text style={styles.description}>الأسماء المقروءة مرمزة كما ظهرت، وتبقى معلّقة حتى اعتماد المشرف.</Text>
+        <Text style={styles.description}>انتقل بين الشجرة الترابطية، فهرس الأسماء، والعلاقات المعتمدة.</Text>
       </View>
-      <View style={styles.switcher}>
-        <Pressable onPress={() => onModeChange('all')} style={[styles.modeButton, mode === 'all' && styles.modeButtonActive]}>
-          <Text style={[styles.modeText, mode === 'all' && styles.modeTextActive]}>جميع الأسماء ({allCount})</Text>
-        </Pressable>
-        <Pressable onPress={() => onModeChange('confirmed')} style={[styles.modeButton, mode === 'confirmed' && styles.modeButtonActive]}>
-          <Text style={[styles.modeText, mode === 'confirmed' && styles.modeTextActive]}>المعتمدة ({confirmedCount})</Text>
-        </Pressable>
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeSwitcher}>
+        <ModeButton active={mode === 'tree'} label={`الشجرة (${allCount})`} icon="git-network" onPress={() => onModeChange('tree')} />
+        <ModeButton active={mode === 'index'} label="فهرس الأسماء" icon="list" onPress={() => onModeChange('index')} />
+        <ModeButton active={mode === 'confirmed'} label={`المعتمدة (${confirmedCount})`} icon="shield-checkmark" onPress={() => onModeChange('confirmed')} />
+      </ScrollView>
     </>
   );
 }
 
-function FilterRow({
-  items,
-  selected,
-  onSelect,
-}: {
-  items: Array<{ value: string; label: string }>;
-  selected: string;
-  onSelect: (value: string) => void;
-}) {
+function ModeButton({ active, label, icon, onPress }: { active: boolean; label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.modeButton, active && styles.modeButtonActive]}>
+      <Ionicons name={icon} size={18} color={active ? colors.white : colors.primary} />
+      <Text style={[styles.modeText, active && styles.modeTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function FilterRow({ items, selected, onSelect }: { items: Array<{ value: string; label: string }>; selected: string; onSelect: (value: string) => void }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
       {items.map((item) => {
@@ -293,47 +243,36 @@ function FilterRow({
   );
 }
 
-function byChartOrder(a: Person, b: Person) {
-  return (a.chart_order ?? a.generation ?? 9999) - (b.chart_order ?? b.generation ?? 9999);
-}
-
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.background, flex: 1 },
+  loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   content: { padding: 18, paddingBottom: 110 },
-  header: { marginBottom: 16 },
-  title: { color: colors.primary, fontSize: 28, fontWeight: '900', textAlign: 'right' },
+  header: { marginBottom: 14 },
+  title: { color: colors.primary, fontSize: 30, fontWeight: '900', textAlign: 'right' },
   description: { color: colors.muted, fontSize: 14, lineHeight: 24, marginTop: 8, textAlign: 'right' },
-  switcher: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 5, marginBottom: 14, padding: 5 },
-  modeButton: { alignItems: 'center', borderRadius: radius.md, flex: 1, justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 },
-  modeButtonActive: { backgroundColor: colors.primary },
-  modeText: { color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  modeSwitcher: { flexDirection: 'row-reverse', gap: 8, paddingBottom: 14 },
+  modeButton: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1, flexDirection: 'row-reverse', gap: 7, minHeight: 46, paddingHorizontal: 15 },
+  modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeText: { color: colors.primary, fontSize: 13, fontWeight: '900' },
   modeTextActive: { color: colors.white },
-  notice: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginBottom: 12, padding: 13 },
-  noticeText: { color: colors.text, flex: 1, fontSize: 12, lineHeight: 20, textAlign: 'right' },
-  searchBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, paddingHorizontal: 15, ...shadow },
-  searchInput: { color: colors.text, flex: 1, fontSize: 15, height: 54 },
-  filters: { flexDirection: 'row-reverse', gap: 8, paddingTop: 10 },
-  filterChip: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
+  notice: { alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 10, marginBottom: 14, padding: 14 },
+  noticeText: { color: '#765714', flex: 1, fontSize: 13, lineHeight: 22, textAlign: 'right' },
+  noticeGreen: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 10, marginBottom: 14, padding: 14 },
+  noticeGreenText: { color: colors.primary, flex: 1, fontSize: 13, lineHeight: 22, textAlign: 'right' },
+  linkStatusCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', marginBottom: 14, paddingVertical: 14, ...shadow },
+  linkStatusItem: { alignItems: 'center', flex: 1 },
+  linkStatusNumber: { color: colors.primary, fontSize: 22, fontWeight: '900' },
+  linkStatusLabel: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  searchBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 9, marginBottom: 14, minHeight: 58, paddingHorizontal: 16, ...shadow },
+  searchInput: { color: colors.text, flex: 1, fontSize: 15 },
+  filters: { flexDirection: 'row-reverse', gap: 8, paddingBottom: 9 },
+  filterChip: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1, minHeight: 42, paddingHorizontal: 14, justifyContent: 'center' },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
+  filterText: { color: colors.primary, fontSize: 12, fontWeight: '800' },
   filterTextActive: { color: colors.white },
-  resultsHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 12, marginTop: 20 },
-  resultsTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
-  resultsCount: { color: colors.muted, fontSize: 12, fontWeight: '800' },
+  resultsHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 12, marginTop: 9 },
+  resultsTitle: { color: colors.primary, fontSize: 21, fontWeight: '900' },
+  resultsCount: { color: colors.muted, fontSize: 12 },
   cardGap: { marginBottom: 10 },
-  empty: { color: colors.muted, padding: 30, textAlign: 'center' },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 12 },
-  sectionHeaderBranches: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 12, marginTop: 24 },
-  sectionTitle: { color: colors.text, flex: 1, fontSize: 19, fontWeight: '900', textAlign: 'right' },
-  colorDot: { borderRadius: 8, height: 14, width: 14 },
-  trunkCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 12, ...shadow },
-  nodeWrap: { alignItems: 'center', width: '100%' },
-  connector: { backgroundColor: colors.gold, height: 22, opacity: 0.65, width: 2 },
-  branchCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 10, overflow: 'hidden' },
-  branchHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 11, minHeight: 72, padding: 14 },
-  branchColor: { borderColor: colors.line, borderRadius: 16, borderWidth: 1, height: 42, width: 42 },
-  branchTextWrap: { flex: 1 },
-  branchTitle: { color: colors.text, fontSize: 15, fontWeight: '900', textAlign: 'right' },
-  branchMeta: { color: colors.muted, fontSize: 12, marginTop: 3, textAlign: 'right' },
-  branchNodes: { backgroundColor: colors.background, borderTopColor: colors.line, borderTopWidth: 1, padding: 10 },
+  empty: { color: colors.muted, paddingVertical: 34, textAlign: 'center' },
 });
