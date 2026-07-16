@@ -46,11 +46,11 @@ const fallbackPeople: Person[] = fallbackNames.map((full_name, index) => ({
 }));
 
 const fallbackChartReadingStats: ChartReadingStats = {
-  total: 156,
-  readable: 125,
+  total: 196,
+  readable: 165,
   review: 24,
   unclear: 7,
-  promoted: 156,
+  promoted: 196,
 };
 
 type RequestOptions = { method?: 'GET' | 'POST'; body?: unknown };
@@ -118,7 +118,7 @@ export async function getChartReadings(status: ReadingStatus | '' = ''): Promise
 export async function getChartReadingStats(): Promise<ChartReadingStats> {
   try {
     const stats = await request<ChartReadingStats>('/chart-readings-stats');
-    return stats.total < 156 ? fallbackChartReadingStats : stats;
+    return stats.total < 196 ? fallbackChartReadingStats : stats;
   } catch {
     return fallbackChartReadingStats;
   }
