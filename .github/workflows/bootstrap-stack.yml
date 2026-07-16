@@ -183,7 +183,7 @@ jobs:
           [ "$PENDING_COUNT" -ge 214 ]
           [ "$CONFIRMED_COUNT" -ge 24 ]
           grep -q 'pending_supervisor' "$MOBILE_PATH/src/generated/bundledPeople.ts"
-          node -e "console.log(require.resolve('react-native-svg/package.json'))"
+          (cd "$MOBILE_PATH" && node -e "console.log(require.resolve('react-native-svg/package.json'))")
 
           EDGE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/chart-edges-stats)
           php -r '
