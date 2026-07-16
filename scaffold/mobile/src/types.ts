@@ -1,14 +1,21 @@
 export type ReadingStatus = 'readable' | 'review' | 'unclear';
+export type ApprovalStatus = 'supervisor_confirmed' | 'pending_supervisor' | 'rejected';
 export type ReviewRequestType = 'correction' | 'addition' | 'source';
 export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'branch_label' | 'unknown';
 
 export type Person = {
   id: number;
   full_name: string;
+  source_code?: string | null;
+  chart_reading_id?: number | null;
   node_type?: GenealogyNodeType;
   honorific?: string | null;
   lineage_parent_id?: number | null;
   status: ReadingStatus;
+  approval_status?: ApprovalStatus;
+  is_provisional?: boolean;
+  supervisor_note?: string | null;
+  approved_at?: string | null;
   chart_branch?: string | null;
   chart_color?: string | null;
   generation: number;
@@ -21,6 +28,8 @@ export type Person = {
 
 export type Stats = {
   total: number;
+  confirmed?: number;
+  pending_supervisor?: number;
   readable: number;
   review: number;
   unclear: number;
