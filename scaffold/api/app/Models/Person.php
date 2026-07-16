@@ -44,6 +44,23 @@ class Person extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Person $person): void {
+            if ($person->chart_reading_id || $person->is_provisional) {
+                return;
+            }
+
+            if (! $person->source_code && $person->chart_order) {
+                $person->source_code = sprintf('CORE-%03d', $person->chart_order);
+            }
+
+            $person->approval_status = 'supervisor_confirmed';
+            $person->is_provisional = false;
+            $person->approved_at ??= now();
+        });
+    }
+
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'lineage_parent_id');
