@@ -2,6 +2,7 @@ export type ReadingStatus = 'readable' | 'review' | 'unclear';
 export type ApprovalStatus = 'supervisor_confirmed' | 'pending_supervisor' | 'rejected';
 export type ReviewRequestType = 'correction' | 'addition' | 'source';
 export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'branch_label' | 'unknown';
+export type ChartEdgeType = 'lineage' | 'branch_founder' | 'branch_membership';
 
 export type Person = {
   id: number;
@@ -82,6 +83,31 @@ export type ChartReadingStats = {
   review: number;
   unclear: number;
   promoted: number;
+};
+
+export type ChartEdge = {
+  id: number;
+  from_source_key: string;
+  to_source_key: string;
+  relation_type: ChartEdgeType;
+  reading_status: ReadingStatus;
+  confidence: number;
+  approval_status: ApprovalStatus;
+  source_locator?: string | null;
+  notes?: string | null;
+};
+
+export type ChartEdgeResponse = {
+  data: ChartEdge[];
+};
+
+export type ChartEdgeStats = {
+  total: number;
+  readable: number;
+  review: number;
+  unclear: number;
+  confirmed: number;
+  pending_supervisor: number;
 };
 
 export type ReviewRequestPayload = {
