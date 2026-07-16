@@ -187,6 +187,7 @@ npx expo install \
   react-native-web \
   @expo/metro-runtime
 npx expo install --fix
+node -e "console.log(require.resolve('react-native-svg/package.json'))"
 npx tsc --noEmit
 
 log "Exporting Expo Web for production."
