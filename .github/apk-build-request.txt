@@ -1,3 +1,4 @@
-Build requested: 2026-07-16T16:45:00+03:00
+Build requested: 2026-07-16T10:55:00+03:00
 Version: 1.0.2 (3)
+Reason: Retry after allowing CI snapshot download with current self-signed certificate
 Artifact: Shajara-Android-Release-APK
