@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 60
 
     env:
-      EXPO_PUBLIC_API_URL: https://pm.sa/apps/shajara/api/v1
+      EXPO_PUBLIC_API_URL: https://shajara.pm.sa/api/v1
       CI: '1'
 
     steps:
