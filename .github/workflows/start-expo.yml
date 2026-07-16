@@ -58,7 +58,7 @@ jobs:
           MOBILE_PATH="$APP_PATH/shajara-mobile"
           PID_FILE="$MOBILE_PATH/.expo-$EXPO_PORT.pid"
           LOG_FILE="$MOBILE_PATH/expo-$EXPO_PORT.log"
-          API_URL='https://pm.sa/apps/shajara/api/v1'
+          API_URL='https://shajara.pm.sa/api/v1'
 
           test -s "$MOBILE_PATH/package.json" || {
             echo "Missing Expo project: $MOBILE_PATH/package.json"
