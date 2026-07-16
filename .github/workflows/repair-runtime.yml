@@ -9,8 +9,10 @@ on:
       - .github/workflows/repair-runtime.yml
       - scaffold/api/database/migrations/**
       - scaffold/api/database/seeders/**
-      - scaffold/api/app/Models/ChartReading.php
-      - scaffold/api/app/Http/Controllers/Api/ChartReadingController.php
+      - scaffold/api/app/Models/**
+      - scaffold/api/app/Services/**
+      - scaffold/api/app/Http/Controllers/Api/**
+      - scaffold/api/app/Http/Resources/**
       - scaffold/api/routes/api.php
 
 permissions:
@@ -22,7 +24,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Seed database, verify API, restart Expo
+    name: Promote readings, verify API, restart Expo
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: production
@@ -41,7 +43,7 @@ jobs:
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
 
-      - name: Repair server runtime
+      - name: Repair and verify server runtime
         shell: bash
         env:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
@@ -65,7 +67,6 @@ jobs:
           test -s "$API_PATH/artisan"
           test -s "$MOBILE_PATH/package.json"
 
-          # Avoid racing with the full bootstrap job.
           for _ in $(seq 1 60); do
             if ! pgrep -f '[b]ootstrap-stack.sh' >/dev/null 2>&1; then
               break
@@ -77,64 +78,61 @@ jobs:
           php artisan optimize:clear
           php artisan migrate --force
           php artisan db:seed --class=DatabaseSeeder --force
+          php artisan db:seed --class=ProvisionalPersonSeeder --force
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
 
           PEOPLE_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::count();" 2>/dev/null | tr -cd '0-9')
           READING_COUNT=$(php artisan tinker --execute="echo App\\Models\\ChartReading::count();" 2>/dev/null | tr -cd '0-9')
+          PENDING_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','pending_supervisor')->count();" 2>/dev/null | tr -cd '0-9')
+          CONFIRMED_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','supervisor_confirmed')->count();" 2>/dev/null | tr -cd '0-9')
+          PROMOTED_COUNT=$(php artisan tinker --execute="echo App\\Models\\ChartReading::where('is_promoted',true)->count();" 2>/dev/null | tr -cd '0-9')
 
-          echo "People in database: ${PEOPLE_COUNT:-unknown}"
-          echo "Chart readings in database: ${READING_COUNT:-unknown}"
+          echo "People: ${PEOPLE_COUNT:-unknown}"
+          echo "Confirmed: ${CONFIRMED_COUNT:-unknown}"
+          echo "Pending supervisor: ${PENDING_COUNT:-unknown}"
+          echo "Chart readings: ${READING_COUNT:-unknown}"
+          echo "Promoted readings: ${PROMOTED_COUNT:-unknown}"
 
-          if [ -z "${PEOPLE_COUNT:-}" ] || [ "$PEOPLE_COUNT" -lt 24 ]; then
-            echo "Expected at least 24 approved people after seeding."
-            exit 1
-          fi
+          test -n "${PEOPLE_COUNT:-}" && [ "$PEOPLE_COUNT" -ge 220 ]
+          test -n "${CONFIRMED_COUNT:-}" && [ "$CONFIRMED_COUNT" -ge 24 ]
+          test -n "${PENDING_COUNT:-}" && [ "$PENDING_COUNT" -ge 196 ]
+          test -n "${READING_COUNT:-}" && [ "$READING_COUNT" -ge 196 ]
+          test -n "${PROMOTED_COUNT:-}" && [ "$PROMOTED_COUNT" -ge 196 ]
 
-          if [ -z "${READING_COUNT:-}" ] || [ "$READING_COUNT" -lt 156 ]; then
-            echo "Expected at least 156 chart readings after migration and seeding."
-            exit 1
-          fi
+          STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
+            https://shajara.pm.sa/api/v1/stats)
+          printf '%s\n' "$STATS_JSON"
+          php -r '
+            $data = json_decode($argv[1], true);
+            if (!is_array($data) || ($data["total"] ?? 0) < 220 || ($data["pending_supervisor"] ?? 0) < 196) {
+                fwrite(STDERR, "People stats API did not expose all coded nodes.\n");
+                exit(1);
+            }
+          ' "$STATS_JSON"
 
-          if command -v curl >/dev/null 2>&1; then
-            echo 'Local approved-tree API response:'
-            curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
-              https://shajara.pm.sa/api/v1/stats
-            echo
-
-            echo 'Local chart-reading API response:'
-            STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
-              https://shajara.pm.sa/api/v1/chart-readings-stats)
-            printf '%s\n' "$STATS_JSON"
-            php -r '
-              $data = json_decode($argv[1], true);
-              if (!is_array($data) || ($data["total"] ?? 0) < 156) {
-                  fwrite(STDERR, "Chart-reading stats API did not return at least 156 records.\n");
-                  exit(1);
-              }
-            ' "$STATS_JSON"
-          fi
-
-          if [ -x /usr/local/cpanel/bin/autossl_check ]; then
-            /usr/local/cpanel/bin/autossl_check --user=pmsa || true
-          fi
-          if [ -x /scripts/rebuildhttpdconf ]; then
-            /scripts/rebuildhttpdconf
-          fi
-          if [ -x /scripts/restartsrv_httpd ]; then
-            /scripts/restartsrv_httpd
-          fi
+          PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
+            'https://shajara.pm.sa/api/v1/people?per_page=250')
+          php -r '
+            $data = json_decode($argv[1], true);
+            if (!is_array($data) || count($data["data"] ?? []) < 220) {
+                fwrite(STDERR, "People API did not return all coded nodes.\n");
+                exit(1);
+            }
+          ' "$PEOPLE_JSON"
 
           pkill -f 'expo start.*8083' >/dev/null 2>&1 || true
           fuser -k 8083/tcp >/dev/null 2>&1 || true
           cd "$MOBILE_PATH"
+          printf 'EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1\n' > .env
+          chown pmsa:pmsa .env
           : > "$LOG_PATH"
-          nohup npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
-          echo $! > "$MOBILE_PATH/expo-8083.pid"
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' \
+            npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
 
           for _ in $(seq 1 45); do
-            if curl -fsS http://127.0.0.1:8083/status >/dev/null 2>&1; then
+            if curl -fsS http://127.0.0.1:8083/status | grep -qi running; then
               echo 'Expo Metro is ready on port 8083.'
               exit 0
             fi
