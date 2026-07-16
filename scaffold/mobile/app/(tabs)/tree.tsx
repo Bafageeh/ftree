@@ -16,9 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GenealogyTree } from '../../src/components/GenealogyTree';
 import { PersonCard } from '../../src/components/PersonCard';
-import { getPeople } from '../../src/lib/api';
+import { getChartEdges, getPeople } from '../../src/lib/api';
 import { colors, radius, shadow } from '../../src/theme';
-import type { ApprovalStatus, Person, ReadingStatus } from '../../src/types';
+import type { ApprovalStatus, ChartEdge, Person, ReadingStatus } from '../../src/types';
 
 type ViewMode = 'tree' | 'index' | 'confirmed';
 type ApprovalFilter = '' | ApprovalStatus;
@@ -49,6 +49,7 @@ const approvalFilters: Array<{ value: ApprovalFilter; label: string }> = [
 export default function TreeScreen() {
   const [mode, setMode] = useState<ViewMode>('tree');
   const [people, setPeople] = useState<Person[]>([]);
+  const [edges, setEdges] = useState<ChartEdge[]>([]);
   const [search, setSearch] = useState('');
   const [readingStatus, setReadingStatus] = useState<ReadingStatus | ''>('');
   const [approvalStatus, setApprovalStatus] = useState<ApprovalFilter>('');
@@ -58,7 +59,9 @@ export default function TreeScreen() {
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      setPeople(await getPeople());
+      const [nextPeople, nextEdges] = await Promise.all([getPeople(), getChartEdges()]);
+      setPeople(nextPeople);
+      setEdges(nextEdges);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -72,10 +75,32 @@ export default function TreeScreen() {
     [people],
   );
 
-  const linkedCount = useMemo(() => {
-    const ids = new Set(people.map((person) => person.id));
-    return people.filter((person) => person.lineage_parent_id && ids.has(person.lineage_parent_id)).length;
-  }, [people]);
+  const relationshipSummary = useMemo(() => {
+    const byId = new Map(people.map((person) => [person.id, person]));
+    const byCode = new Map(people.filter((person) => person.source_code).map((person) => [person.source_code as string, person]));
+    const incomingCodes = new Set<string>();
+    const pairs = new Set<string>();
+
+    people.forEach((person) => {
+      if (!person.lineage_parent_id || !byId.has(person.lineage_parent_id)) return;
+      const parent = byId.get(person.lineage_parent_id);
+      pairs.add(`${parent?.source_code ?? parent?.id}>${person.source_code ?? person.id}`);
+      if (person.source_code) incomingCodes.add(person.source_code);
+    });
+
+    edges.forEach((edge) => {
+      if (!byCode.has(edge.from_source_key) || !byCode.has(edge.to_source_key)) return;
+      pairs.add(`${edge.from_source_key}>${edge.to_source_key}`);
+      incomingCodes.add(edge.to_source_key);
+    });
+
+    const unlinked = people.filter((person) => {
+      if (person.source_code === 'CORE-001') return false;
+      return !person.lineage_parent_id && (!person.source_code || !incomingCodes.has(person.source_code));
+    }).length;
+
+    return { relationships: pairs.size, unlinked };
+  }, [edges, people]);
 
   const filteredPeople = useMemo(() => {
     const query = search.trim();
@@ -147,6 +172,9 @@ export default function TreeScreen() {
   }
 
   const treePeople = mode === 'confirmed' ? confirmedPeople : people;
+  const treeEdges = mode === 'confirmed'
+    ? edges.filter((edge) => edge.approval_status === 'supervisor_confirmed')
+    : edges;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -160,7 +188,7 @@ export default function TreeScreen() {
           <View style={styles.notice}>
             <Ionicons name="git-network" size={22} color="#8A661E" />
             <Text style={styles.noticeText}>
-              هذه هي الشجرة الترابطية. افتح أي فرع ثم وسّع الأبناء. العقد غير المربوطة تبقى ظاهرة للمشرف حتى يحدد أباها.
+              تعرض الشجرة علاقات الأبوة المعتمدة وأسهم المشجرة المقروءة. السهم المعلّق يبقى مميزًا حتى اعتماد المشرف.
             </Text>
           </View>
         )}
@@ -178,16 +206,16 @@ export default function TreeScreen() {
             <Text style={styles.linkStatusLabel}>عقد ظاهرة</Text>
           </View>
           <View style={styles.linkStatusItem}>
-            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? Math.max(0, confirmedPeople.length - 1) : linkedCount}</Text>
-            <Text style={styles.linkStatusLabel}>علاقات أبوة</Text>
+            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? Math.max(0, confirmedPeople.length - 1) : relationshipSummary.relationships}</Text>
+            <Text style={styles.linkStatusLabel}>علاقات مسجلة</Text>
           </View>
           <View style={styles.linkStatusItem}>
-            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? 0 : Math.max(0, people.length - linkedCount - 1)}</Text>
+            <Text style={styles.linkStatusNumber}>{mode === 'confirmed' ? 0 : relationshipSummary.unlinked}</Text>
             <Text style={styles.linkStatusLabel}>تحتاج ربطًا</Text>
           </View>
         </View>
 
-        <GenealogyTree people={treePeople} branchLabels={branchLabels} />
+        <GenealogyTree people={treePeople} edges={treeEdges} branchLabels={branchLabels} />
       </ScrollView>
     </SafeAreaView>
   );
