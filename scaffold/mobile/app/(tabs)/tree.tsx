@@ -15,11 +15,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PersonCard } from '../../src/components/PersonCard';
-import { getChartReadings, getPeople } from '../../src/lib/api';
+import { getPeople } from '../../src/lib/api';
 import { colors, radius, shadow } from '../../src/theme';
-import type { ChartReading, Person, ReadingStatus } from '../../src/types';
+import type { ApprovalStatus, Person, ReadingStatus } from '../../src/types';
 
-type ViewMode = 'readings' | 'approved';
+type ViewMode = 'all' | 'confirmed';
+type ApprovalFilter = '' | ApprovalStatus;
 
 const branchLabels: Record<string, string> = {
   central_trunk: 'الجذع الأوسط',
@@ -31,86 +32,103 @@ const branchLabels: Record<string, string> = {
   abdulrahman_faqih: 'فرع عبد الرحمن بن الفقيه المقدم',
 };
 
-const statusFilters: Array<{ value: ReadingStatus | ''; label: string }> = [
-  { value: '', label: 'الكل' },
+const readingFilters: Array<{ value: ReadingStatus | ''; label: string }> = [
+  { value: '', label: 'كل القراءات' },
   { value: 'readable', label: 'واضحة' },
   { value: 'review', label: 'للمراجعة' },
   { value: 'unclear', label: 'غير محسومة' },
 ];
 
+const approvalFilters: Array<{ value: ApprovalFilter; label: string }> = [
+  { value: '', label: 'الكل' },
+  { value: 'pending_supervisor', label: 'بانتظار المشرف' },
+  { value: 'supervisor_confirmed', label: 'معتمدة' },
+];
+
 export default function TreeScreen() {
-  const [mode, setMode] = useState<ViewMode>('readings');
+  const [mode, setMode] = useState<ViewMode>('all');
   const [people, setPeople] = useState<Person[]>([]);
-  const [readings, setReadings] = useState<ChartReading[]>([]);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<ReadingStatus | ''>('');
+  const [readingStatus, setReadingStatus] = useState<ReadingStatus | ''>('');
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalFilter>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
-    const [peopleResult, readingResult] = await Promise.all([
-      getPeople(),
-      getChartReadings().catch(() => []),
-    ]);
-    setPeople(peopleResult);
-    setReadings(readingResult);
+    setPeople(await getPeople());
     setLoading(false);
     setRefreshing(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredReadings = useMemo(() => {
+  const confirmedPeople = useMemo(
+    () => people.filter((person) => person.approval_status === 'supervisor_confirmed' && !person.is_provisional),
+    [people],
+  );
+
+  const filteredPeople = useMemo(() => {
     const query = search.trim();
-    return readings.filter((reading) => {
-      const matchesStatus = !status || reading.reading_status === status;
-      const haystack = `${reading.provisional_name} ${reading.normalized_name ?? ''} ${reading.source_locator ?? ''} ${branchLabels[reading.chart_branch ?? ''] ?? ''}`;
+    return people.filter((person) => {
+      const matchesReading = !readingStatus || person.status === readingStatus;
+      const matchesApproval = !approvalStatus || person.approval_status === approvalStatus;
+      const haystack = `${person.full_name} ${person.source_code ?? ''} ${person.honorific ?? ''} ${person.source_locator ?? ''}`;
       const matchesSearch = !query || haystack.includes(query);
-      return matchesStatus && matchesSearch;
+      return matchesReading && matchesApproval && matchesSearch;
     });
-  }, [readings, search, status]);
+  }, [approvalStatus, people, readingStatus, search]);
 
   const centralTrunk = useMemo(
-    () => people
+    () => confirmedPeople
       .filter((person) => person.chart_branch === 'central_trunk' || !person.chart_branch)
       .sort(byChartOrder),
-    [people],
+    [confirmedPeople],
   );
 
   const branches = useMemo(() => {
     const grouped = new Map<string, Person[]>();
-    people.forEach((person) => {
+    confirmedPeople.forEach((person) => {
       if (!person.chart_branch || person.chart_branch === 'central_trunk') return;
-      const existing = grouped.get(person.chart_branch) ?? [];
-      existing.push(person);
-      grouped.set(person.chart_branch, existing);
+      grouped.set(person.chart_branch, [...(grouped.get(person.chart_branch) ?? []), person]);
     });
 
     return [...grouped.entries()]
       .map(([key, nodes]) => ({ key, nodes: nodes.sort(byChartOrder) }))
-      .sort((left, right) => (left.nodes[0]?.chart_order ?? 9999) - (right.nodes[0]?.chart_order ?? 9999));
-  }, [people]);
+      .sort((a, b) => (a.nodes[0]?.chart_order ?? 9999) - (b.nodes[0]?.chart_order ?? 9999));
+  }, [confirmedPeople]);
 
-  if (mode === 'readings') {
+  if (mode === 'all') {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <FlatList
-          data={filteredReadings}
-          keyExtractor={(item) => `reading-${item.id}`}
+          data={filteredPeople}
+          keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
           ListHeaderComponent={
             <>
-              <Header mode={mode} onModeChange={setMode} approvedCount={people.length} readingCount={readings.length} />
+              <Header
+                mode={mode}
+                onModeChange={setMode}
+                allCount={people.length}
+                confirmedCount={confirmedPeople.length}
+              />
+
+              <View style={styles.notice}>
+                <Ionicons name="information-circle" size={22} color="#8A661E" />
+                <Text style={styles.noticeText}>
+                  كل قراءة ظاهرة برمزها كما هي. غير المعتمد منها يحمل شارة «بانتظار اعتماد المشرف» ولا يُعد نسبًا نهائيًا.
+                </Text>
+              </View>
 
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={21} color={colors.muted} />
                 <TextInput
                   value={search}
                   onChangeText={setSearch}
-                  placeholder="ابحث في جميع الأسماء والقراءات"
+                  placeholder="ابحث بالاسم أو رمز القراءة"
                   placeholderTextColor={colors.muted}
                   style={styles.searchInput}
                   textAlign="right"
@@ -122,28 +140,28 @@ export default function TreeScreen() {
                 )}
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-                {statusFilters.map((filter) => {
-                  const active = status === filter.value;
-                  return (
-                    <Pressable
-                      key={filter.label}
-                      onPress={() => setStatus(filter.value)}
-                      style={[styles.filterChip, active && styles.filterChipActive]}
-                    >
-                      <Text style={[styles.filterText, active && styles.filterTextActive]}>{filter.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <FilterRow
+                items={approvalFilters}
+                selected={approvalStatus}
+                onSelect={(value) => setApprovalStatus(value as ApprovalFilter)}
+              />
+              <FilterRow
+                items={readingFilters}
+                selected={readingStatus}
+                onSelect={(value) => setReadingStatus(value as ReadingStatus | '')}
+              />
 
               <View style={styles.resultsHeader}>
-                <Text style={styles.resultsTitle}>كل قراءات المشجرة</Text>
-                <Text style={styles.resultsCount}>{filteredReadings.length} من {readings.length}</Text>
+                <Text style={styles.resultsTitle}>جميع الأسماء المرمزة</Text>
+                <Text style={styles.resultsCount}>{filteredPeople.length} من {people.length}</Text>
               </View>
             </>
           }
-          renderItem={({ item }) => <ReadingCard reading={item} />}
+          renderItem={({ item }) => (
+            <View style={styles.cardGap}>
+              <PersonCard person={item} onPress={() => router.push(`/person/${item.id}`)} />
+            </View>
+          )}
           ListEmptyComponent={loading
             ? <ActivityIndicator color={colors.primary} size="large" />
             : <Text style={styles.empty}>لا توجد نتائج مطابقة.</Text>}
@@ -158,74 +176,57 @@ export default function TreeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
       >
-        <Header mode={mode} onModeChange={setMode} approvedCount={people.length} readingCount={readings.length} />
+        <Header
+          mode={mode}
+          onModeChange={setMode}
+          allCount={people.length}
+          confirmedCount={confirmedPeople.length}
+        />
 
-        {loading ? (
-          <ActivityIndicator color={colors.primary} size="large" />
-        ) : (
+        {loading ? <ActivityIndicator color={colors.primary} size="large" /> : (
           <>
             <View style={styles.sectionHeader}>
               <View style={[styles.colorDot, { backgroundColor: '#B98249' }]} />
-              <Text style={styles.sectionTitle}>الجذع الأوسط</Text>
-              <Text style={styles.countText}>{centralTrunk.length}</Text>
+              <Text style={styles.sectionTitle}>الجذع الأوسط المعتمد</Text>
+              <Text style={styles.resultsCount}>{centralTrunk.length}</Text>
             </View>
 
             <View style={styles.trunkCard}>
               {centralTrunk.map((person, index) => (
                 <View key={person.id} style={styles.nodeWrap}>
-                  <PersonCard
-                    person={person}
-                    onPress={() => router.push(`/person/${person.id}`)}
-                    compact
-                  />
+                  <PersonCard person={person} onPress={() => router.push(`/person/${person.id}`)} compact />
                   {index < centralTrunk.length - 1 && <View style={styles.connector} />}
                 </View>
               ))}
             </View>
 
             <View style={styles.sectionHeaderBranches}>
-              <Text style={styles.sectionTitle}>الفروع الرئيسية المعتمدة</Text>
-              <Text style={styles.countText}>{branches.length}</Text>
+              <Text style={styles.sectionTitle}>الفروع المعتمدة</Text>
+              <Text style={styles.resultsCount}>{branches.length}</Text>
             </View>
 
             {branches.map((branch) => {
-              const first = branch.nodes[0];
               const expanded = expandedBranch === branch.key;
+              const first = branch.nodes[0];
               return (
                 <View key={branch.key} style={styles.branchCard}>
                   <Pressable
                     onPress={() => setExpandedBranch(expanded ? null : branch.key)}
-                    style={({ pressed }) => [styles.branchHeader, pressed && styles.pressed]}
+                    style={styles.branchHeader}
                   >
-                    <View
-                      style={[
-                        styles.branchColor,
-                        {
-                          backgroundColor: first?.chart_color || colors.primarySoft,
-                          borderColor: first?.chart_color === '#FFFFFF' ? colors.line : 'transparent',
-                        },
-                      ]}
-                    />
+                    <View style={[styles.branchColor, { backgroundColor: first?.chart_color || colors.primarySoft }]} />
                     <View style={styles.branchTextWrap}>
                       <Text style={styles.branchTitle}>{branchLabels[branch.key] ?? branch.key}</Text>
-                      <Text style={styles.branchMeta}>{branch.nodes.length} اسم معتمد</Text>
+                      <Text style={styles.branchMeta}>{branch.nodes.length} عقدة معتمدة</Text>
                     </View>
-                    <Ionicons
-                      name={expanded ? 'chevron-up' : 'chevron-down'}
-                      size={20}
-                      color={colors.muted}
-                    />
+                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
                   </Pressable>
 
                   {expanded && (
                     <View style={styles.branchNodes}>
                       {branch.nodes.map((person) => (
-                        <View key={person.id} style={styles.branchNodeGap}>
-                          <PersonCard
-                            person={person}
-                            onPress={() => router.push(`/person/${person.id}`)}
-                            compact
-                          />
+                        <View key={person.id} style={styles.cardGap}>
+                          <PersonCard person={person} onPress={() => router.push(`/person/${person.id}`)} compact />
                         </View>
                       ))}
                     </View>
@@ -243,79 +244,57 @@ export default function TreeScreen() {
 function Header({
   mode,
   onModeChange,
-  approvedCount,
-  readingCount,
+  allCount,
+  confirmedCount,
 }: {
   mode: ViewMode;
   onModeChange: (mode: ViewMode) => void;
-  approvedCount: number;
-  readingCount: number;
+  allCount: number;
+  confirmedCount: number;
 }) {
   return (
     <>
       <View style={styles.header}>
         <Text style={styles.title}>المشجرة الرقمية</Text>
-        <Text style={styles.description}>
-          اعرض جميع الأسماء المقروءة من الصورة، أو انتقل إلى العلاقات التي تم اعتمادها وربطها حتى الآن.
-        </Text>
+        <Text style={styles.description}>الأسماء المقروءة مرمزة كما ظهرت، وتبقى معلّقة حتى اعتماد المشرف.</Text>
       </View>
-
       <View style={styles.switcher}>
-        <Pressable
-          onPress={() => onModeChange('readings')}
-          style={[styles.modeButton, mode === 'readings' && styles.modeButtonActive]}
-        >
-          <Text style={[styles.modeText, mode === 'readings' && styles.modeTextActive]}>
-            جميع القراءات ({readingCount})
-          </Text>
+        <Pressable onPress={() => onModeChange('all')} style={[styles.modeButton, mode === 'all' && styles.modeButtonActive]}>
+          <Text style={[styles.modeText, mode === 'all' && styles.modeTextActive]}>جميع الأسماء ({allCount})</Text>
         </Pressable>
-        <Pressable
-          onPress={() => onModeChange('approved')}
-          style={[styles.modeButton, mode === 'approved' && styles.modeButtonActive]}
-        >
-          <Text style={[styles.modeText, mode === 'approved' && styles.modeTextActive]}>
-            الشجرة المعتمدة ({approvedCount})
-          </Text>
+        <Pressable onPress={() => onModeChange('confirmed')} style={[styles.modeButton, mode === 'confirmed' && styles.modeButtonActive]}>
+          <Text style={[styles.modeText, mode === 'confirmed' && styles.modeTextActive]}>المعتمدة ({confirmedCount})</Text>
         </Pressable>
       </View>
     </>
   );
 }
 
-function ReadingCard({ reading }: { reading: ChartReading }) {
-  const statusInfo = reading.reading_status === 'readable'
-    ? { label: 'واضحة', color: colors.success, background: '#E5F1E8', icon: 'checkmark-circle' as const }
-    : reading.reading_status === 'unclear'
-      ? { label: 'غير محسومة', color: colors.danger, background: '#F8E6E6', icon: 'alert-circle' as const }
-      : { label: 'تحتاج مراجعة', color: '#8A661E', background: colors.goldSoft, icon: 'time' as const };
-
+function FilterRow({
+  items,
+  selected,
+  onSelect,
+}: {
+  items: Array<{ value: string; label: string }>;
+  selected: string;
+  onSelect: (value: string) => void;
+}) {
   return (
-    <View style={styles.readingCard}>
-      <View style={styles.readingHeader}>
-        <View style={[styles.statusPill, { backgroundColor: statusInfo.background }]}>
-          <Ionicons name={statusInfo.icon} size={14} color={statusInfo.color} />
-          <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
-        </View>
-        <Text style={styles.confidence}>{reading.confidence}%</Text>
-      </View>
-
-      <Text selectable style={styles.readingName}>{reading.provisional_name}</Text>
-      <Text style={styles.branchLabel}>{branchLabels[reading.chart_branch ?? ''] ?? 'فرع غير محدد'}</Text>
-      {!!reading.source_locator && <Text style={styles.locator}>{reading.source_locator}</Text>}
-      {!!reading.notes && <Text style={styles.notes}>{reading.notes}</Text>}
-
-      <View style={styles.readingFooter}>
-        <Text style={styles.nodeType}>
-          {reading.node_type === 'branch_label' ? 'عنوان فرع أو أسرة' : 'اسم شخص'}
-        </Text>
-        <View style={[styles.sourceColor, { backgroundColor: reading.chart_color || colors.primarySoft }]} />
-      </View>
-    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      {items.map((item) => {
+        const active = selected === item.value;
+        return (
+          <Pressable key={`${item.value}-${item.label}`} onPress={() => onSelect(item.value)} style={[styles.filterChip, active && styles.filterChipActive]}>
+            <Text style={[styles.filterText, active && styles.filterTextActive]}>{item.label}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
-function byChartOrder(left: Person, right: Person) {
-  return (left.chart_order ?? left.generation ?? 9999) - (right.chart_order ?? right.generation ?? 9999);
+function byChartOrder(a: Person, b: Person) {
+  return (a.chart_order ?? a.generation ?? 9999) - (b.chart_order ?? b.generation ?? 9999);
 }
 
 const styles = StyleSheet.create({
@@ -329,44 +308,32 @@ const styles = StyleSheet.create({
   modeButtonActive: { backgroundColor: colors.primary },
   modeText: { color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' },
   modeTextActive: { color: colors.white },
+  notice: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginBottom: 12, padding: 13 },
+  noticeText: { color: colors.text, flex: 1, fontSize: 12, lineHeight: 20, textAlign: 'right' },
   searchBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, paddingHorizontal: 15, ...shadow },
   searchInput: { color: colors.text, flex: 1, fontSize: 15, height: 54 },
-  filters: { flexDirection: 'row-reverse', gap: 8, paddingBottom: 4, paddingTop: 12 },
-  filterChip: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 9 },
+  filters: { flexDirection: 'row-reverse', gap: 8, paddingTop: 10 },
+  filterChip: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  filterText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
   filterTextActive: { color: colors.white },
-  resultsHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 12, marginTop: 18 },
+  resultsHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 12, marginTop: 20 },
   resultsTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
   resultsCount: { color: colors.muted, fontSize: 12, fontWeight: '800' },
-  readingCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 10, padding: 16, ...shadow },
-  readingHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between' },
-  statusPill: { alignItems: 'center', borderRadius: radius.pill, flexDirection: 'row-reverse', gap: 5, paddingHorizontal: 10, paddingVertical: 6 },
-  statusText: { fontSize: 11, fontWeight: '900' },
-  confidence: { color: colors.primary, fontSize: 12, fontWeight: '900' },
-  readingName: { color: colors.text, fontSize: 19, fontWeight: '900', marginTop: 13, textAlign: 'right' },
-  branchLabel: { color: colors.success, fontSize: 12, fontWeight: '800', marginTop: 7, textAlign: 'right' },
-  locator: { color: colors.muted, fontSize: 11, lineHeight: 19, marginTop: 6, textAlign: 'right' },
-  notes: { color: colors.text, fontSize: 13, lineHeight: 22, marginTop: 7, textAlign: 'right' },
-  readingFooter: { alignItems: 'center', borderTopColor: colors.line, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 12, paddingTop: 10 },
-  nodeType: { color: colors.muted, fontSize: 11 },
-  sourceColor: { borderColor: colors.line, borderRadius: 8, borderWidth: 1, height: 16, width: 28 },
+  cardGap: { marginBottom: 10 },
+  empty: { color: colors.muted, padding: 30, textAlign: 'center' },
   sectionHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 12 },
   sectionHeaderBranches: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 12, marginTop: 24 },
   sectionTitle: { color: colors.text, flex: 1, fontSize: 19, fontWeight: '900', textAlign: 'right' },
-  countText: { color: colors.muted, fontSize: 12, fontWeight: '800' },
   colorDot: { borderRadius: 8, height: 14, width: 14 },
   trunkCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 12, ...shadow },
   nodeWrap: { alignItems: 'center', width: '100%' },
   connector: { backgroundColor: colors.gold, height: 22, opacity: 0.65, width: 2 },
   branchCard: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 10, overflow: 'hidden' },
   branchHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 11, minHeight: 72, padding: 14 },
-  branchColor: { borderRadius: 16, borderWidth: 1, height: 42, width: 42 },
+  branchColor: { borderColor: colors.line, borderRadius: 16, borderWidth: 1, height: 42, width: 42 },
   branchTextWrap: { flex: 1 },
   branchTitle: { color: colors.text, fontSize: 15, fontWeight: '900', textAlign: 'right' },
   branchMeta: { color: colors.muted, fontSize: 12, marginTop: 3, textAlign: 'right' },
   branchNodes: { backgroundColor: colors.background, borderTopColor: colors.line, borderTopWidth: 1, padding: 10 },
-  branchNodeGap: { marginBottom: 8 },
-  pressed: { opacity: 0.72 },
-  empty: { color: colors.muted, padding: 30, textAlign: 'center' },
 });
