@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\ChartReadingPromoter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class ChartReading extends Model
 {
@@ -32,6 +34,21 @@ class ChartReading extends Model
             'confidence' => 'integer',
             'is_promoted' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (ChartReading $reading): void {
+            if ($reading->is_promoted && $reading->person_id) {
+                return;
+            }
+
+            if (! Schema::hasColumn('people', 'approval_status')) {
+                return;
+            }
+
+            app(ChartReadingPromoter::class)->promote($reading);
+        });
     }
 
     public function person(): BelongsTo
