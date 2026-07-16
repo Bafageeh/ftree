@@ -62,6 +62,29 @@ jobs:
           APP_PATH: ${{ vars.APP_PATH }}
         run: |
           set -euo pipefail
+
+          # PHP CLI does not accept `php -` as a stdin script on this server.
+          # Patch the deployment copy before sending it, while keeping the source
+          # script compatible with the next permanent cleanup commit.
+          cp scripts/bootstrap-stack.sh /tmp/bootstrap-stack-fixed.sh
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/bootstrap-stack-fixed.sh')
+          text = path.read_text()
+          text = text.replace(
+              'php - "$API_PATH" "$MOBILE_PATH/src/generated/bundledPeople.ts" <<\'PHP\'',
+              'API_PATH_ENV="$API_PATH" OUTPUT_PATH_ENV="$MOBILE_PATH/src/generated/bundledPeople.ts" php <<\'PHP\'',
+          )
+          text = text.replace(
+              '$apiPath = $argv[1];\n$outputPath = $argv[2];',
+              '$apiPath = getenv(\'API_PATH_ENV\');\n$outputPath = getenv(\'OUTPUT_PATH_ENV\');',
+          )
+          if 'php - "$API_PATH"' in text:
+              raise SystemExit('Failed to patch PHP stdin invocation.')
+          path.write_text(text)
+          PY
+
           ssh -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
@@ -69,9 +92,71 @@ jobs:
             -o ServerAliveCountMax=20 \
             -p "$SERVER_PORT" \
             "root@$SERVER_HOST" \
-            "bash -s -- '$APP_PATH'" < scripts/bootstrap-stack.sh
+            "bash -s -- '$APP_PATH'" < /tmp/bootstrap-stack-fixed.sh
 
-      - name: Verify stack
+      - name: Verify full coded genealogy and restart Expo
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          API_PATH="$APP_PATH/shajara-api"
+          MOBILE_PATH="$APP_PATH/shajara-mobile"
+          LOG_PATH="$MOBILE_PATH/expo-8083.log"
+
+          test -s "$API_PATH/artisan"
+          test -s "$MOBILE_PATH/package.json"
+          test -s "$MOBILE_PATH/src/generated/bundledPeople.ts"
+
+          cd "$API_PATH"
+          PEOPLE_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::count();" 2>/dev/null | tr -cd '0-9')
+          PENDING_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','pending_supervisor')->count();" 2>/dev/null | tr -cd '0-9')
+          CONFIRMED_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','supervisor_confirmed')->count();" 2>/dev/null | tr -cd '0-9')
+
+          echo "People: $PEOPLE_COUNT"
+          echo "Pending supervisor: $PENDING_COUNT"
+          echo "Confirmed: $CONFIRMED_COUNT"
+
+          [ "$PEOPLE_COUNT" -ge 220 ]
+          [ "$PENDING_COUNT" -ge 196 ]
+          [ "$CONFIRMED_COUNT" -ge 24 ]
+          grep -q 'pending_supervisor' "$MOBILE_PATH/src/generated/bundledPeople.ts"
+
+          pkill -f 'expo start.*8083' >/dev/null 2>&1 || true
+          fuser -k 8083/tcp >/dev/null 2>&1 || true
+          rm -rf "$MOBILE_PATH/.expo" "$MOBILE_PATH/node_modules/.cache"
+          rm -rf /tmp/metro-* /tmp/haste-map-* 2>/dev/null || true
+
+          cd "$MOBILE_PATH"
+          : > "$LOG_PATH"
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' \
+            npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
+              echo 'Expo Metro is ready with the full coded genealogy.'
+              tail -n 30 "$LOG_PATH" || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          tail -n 150 "$LOG_PATH" || true
+          exit 1
+          REMOTE
+
+      - name: Verify stack files
         shell: bash
         env:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
