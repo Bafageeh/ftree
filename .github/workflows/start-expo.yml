@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - .github/workflows/start-expo.yml
+      - scaffold/mobile/**
 
 permissions:
   contents: read
@@ -57,11 +58,16 @@ jobs:
           MOBILE_PATH="$APP_PATH/shajara-mobile"
           PID_FILE="$MOBILE_PATH/.expo-$EXPO_PORT.pid"
           LOG_FILE="$MOBILE_PATH/expo-$EXPO_PORT.log"
+          API_URL='https://pm.sa/apps/shajara/api/v1'
 
           test -s "$MOBILE_PATH/package.json" || {
             echo "Missing Expo project: $MOBILE_PATH/package.json"
             exit 1
           }
+
+          printf 'EXPO_PUBLIC_API_URL=%s\n' "$API_URL" > "$MOBILE_PATH/.env"
+          chown pmsa:pmsa "$MOBILE_PATH/.env"
+          chmod 0644 "$MOBILE_PATH/.env"
 
           if [[ -s "$PID_FILE" ]]; then
             OLD_PID="$(cat "$PID_FILE" || true)"
@@ -78,7 +84,7 @@ jobs:
 
           cd "$MOBILE_PATH"
           : > "$LOG_FILE"
-          nohup env CI=1 EXPO_NO_TELEMETRY=1 \
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL="$API_URL" \
             npx expo start --clear --port "$EXPO_PORT" --lan \
             > "$LOG_FILE" 2>&1 < /dev/null &
           NEW_PID=$!
@@ -93,7 +99,7 @@ jobs:
 
             STATUS="$(curl -fsS --max-time 2 "http://127.0.0.1:$EXPO_PORT/status" 2>/dev/null || true)"
             if printf '%s' "$STATUS" | grep -qi 'running'; then
-              echo "Expo Metro is running."
+              echo "Expo Metro is running with API: $API_URL"
               echo "PID: $NEW_PID"
               echo "Metro: exp://65.109.251.164:$EXPO_PORT"
               echo "Web development: http://65.109.251.164:$EXPO_PORT"
