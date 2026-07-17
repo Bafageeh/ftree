@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -56,7 +55,7 @@ return new class extends Migration
             $parent = DB::table('people')->where('source_code', $parentCode)->first();
 
             if (! $parent) {
-                throw new RuntimeException("Missing genealogy parent {$parentCode} for {$sourceCode}.");
+                throw new \RuntimeException("Missing genealogy parent {$parentCode} for {$sourceCode}.");
             }
 
             DB::table('people')->updateOrInsert(
@@ -89,7 +88,7 @@ return new class extends Migration
 
         $importedCount = DB::table('people')->whereBetween('chart_order', [2301, 2332])->count();
         if ($importedCount < 32) {
-            throw new RuntimeException("Expected 32 imported genealogy records, found {$importedCount}.");
+            throw new \RuntimeException("Expected 32 imported genealogy records, found {$importedCount}.");
         }
     }
 
