@@ -208,7 +208,7 @@ class PersonController extends Controller
     {
         abort_if($person->source_code === 'CORE-001', 422, 'لا يمكن حذف أصل الشجرة سيد البشر محمد ﷺ.');
 
-        $descendantIds = $this->descendantIds($person->id);
+        $descendantIds = $this->descendantIds($person->id, true);
         $allIds = array_values(array_unique([$person->id, ...$descendantIds]));
         $sourceCodes = Person::query()->whereIn('id', $allIds)->pluck('source_code')->filter()->values();
 
@@ -221,7 +221,12 @@ class PersonController extends Controller
                 DB::table('review_requests')->whereIn('person_id', $allIds)->update(['person_id' => null]);
             }
 
-            if (Schema::hasTable('chart_edges') && $sourceCodes->isNotEmpty()) {
+            if (
+                Schema::hasTable('chart_edges')
+                && Schema::hasColumn('chart_edges', 'from_source_key')
+                && Schema::hasColumn('chart_edges', 'to_source_key')
+                && $sourceCodes->isNotEmpty()
+            ) {
                 DB::table('chart_edges')
                     ->whereIn('from_source_key', $sourceCodes)
                     ->orWhereIn('to_source_key', $sourceCodes)
@@ -276,10 +281,10 @@ class PersonController extends Controller
     /**
      * @return array<int, int>
      */
-    private function descendantIds(int $rootId): array
+    private function descendantIds(int $rootId, bool $includeRejected = false): array
     {
         $childrenByParent = Person::query()
-            ->where('approval_status', '!=', 'rejected')
+            ->when(! $includeRejected, fn ($query) => $query->where('approval_status', '!=', 'rejected'))
             ->get(['id', 'lineage_parent_id'])
             ->groupBy('lineage_parent_id');
         $result = [];
