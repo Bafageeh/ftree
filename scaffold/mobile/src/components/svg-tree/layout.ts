@@ -39,12 +39,11 @@ export function createSvgTreeLayout(
   expandedIds: Set<number>,
   minimumWidth: number,
 ): TreeLayout {
+  const displayRoot = resolveVisibleAncestorRoot(root, childrenByParent, visibleIds, 5);
   const measuring = new Set<number>();
 
   const measure = (person: Person): Measured => {
-    if (measuring.has(person.id)) {
-      return { person, subtreeWidth: NODE_WIDTH, children: [] };
-    }
+    if (measuring.has(person.id)) return { person, subtreeWidth: NODE_WIDTH, children: [] };
 
     measuring.add(person.id);
     const children = expandedIds.has(person.id)
@@ -55,18 +54,13 @@ export function createSvgTreeLayout(
     measuring.delete(person.id);
 
     const childrenWidth = children.length
-      ? children.reduce((sum, child) => sum + child.subtreeWidth, 0)
-        + HORIZONTAL_GAP * (children.length - 1)
+      ? children.reduce((sum, child) => sum + child.subtreeWidth, 0) + HORIZONTAL_GAP * (children.length - 1)
       : 0;
 
-    return {
-      person,
-      children,
-      subtreeWidth: Math.max(NODE_WIDTH, childrenWidth),
-    };
+    return { person, children, subtreeWidth: Math.max(NODE_WIDTH, childrenWidth) };
   };
 
-  const measuredRoot = measure(root);
+  const measuredRoot = measure(displayRoot);
   const naturalWidth = measuredRoot.subtreeWidth + CANVAS_PADDING * 2;
   const width = Math.max(minimumWidth, naturalWidth);
   const nodes: PositionedNode[] = [];
@@ -110,8 +104,7 @@ export function createSvgTreeLayout(
     return node;
   };
 
-  const rootLeft = (width - measuredRoot.subtreeWidth) / 2;
-  place(measuredRoot, rootLeft, 0);
+  place(measuredRoot, (width - measuredRoot.subtreeWidth) / 2, 0);
 
   return {
     width,
@@ -119,4 +112,23 @@ export function createSvgTreeLayout(
     nodes,
     connectors,
   };
+}
+
+function resolveVisibleAncestorRoot(
+  root: Person,
+  childrenByParent: Map<number, Person[]>,
+  visibleIds: Set<number>,
+  maxAncestors: number,
+): Person {
+  const byId = new Map<number, Person>();
+  childrenByParent.forEach((children) => children.forEach((person) => byId.set(person.id, person)));
+
+  let current = root;
+  for (let index = 0; index < maxAncestors; index += 1) {
+    if (!current.lineage_parent_id) break;
+    const parent = byId.get(current.lineage_parent_id);
+    if (!parent || !visibleIds.has(parent.id)) break;
+    current = parent;
+  }
+  return current;
 }
