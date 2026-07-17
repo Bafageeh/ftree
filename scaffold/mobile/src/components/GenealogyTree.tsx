@@ -1,2 +1,2 @@
-export { ConnectedGenealogyTree as GenealogyTree } from './ConnectedGenealogyTree';
+export { CompletePropheticTree as GenealogyTree } from './CompletePropheticTree';
 export type { TreeStatusFilter } from './ModernGenealogyTree';
