@@ -1,0 +1,106 @@
+name: Deploy Shajara Mobile
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-mobile.yml
+      - scaffold/mobile/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-mobile-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-mobile:
+    name: Deploy mobile source and restart Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Upload mobile source
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          rsync -az \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $SERVER_PORT" \
+            scaffold/mobile/ \
+            "root@$SERVER_HOST:$APP_PATH/shajara-mobile/"
+
+      - name: Clear Metro cache and restart Expo
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          MOBILE_PATH="$APP_PATH/shajara-mobile"
+          LOG_PATH="$MOBILE_PATH/expo-8083.log"
+
+          test -s "$MOBILE_PATH/package.json"
+          test -s "$MOBILE_PATH/app/lineage-gaps.tsx"
+          grep -q 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
+          ! grep -q "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
+
+          cd "$MOBILE_PATH"
+          if [[ ! -d node_modules ]]; then
+            npm install --no-audit --no-fund
+          fi
+
+          pkill -f 'expo start.*8083' >/dev/null 2>&1 || true
+          fuser -k 8083/tcp >/dev/null 2>&1 || true
+          rm -rf .expo node_modules/.cache
+          rm -rf /tmp/metro-* /tmp/haste-map-* 2>/dev/null || true
+
+          : > "$LOG_PATH"
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' \
+            npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
+              echo 'Shajara Expo restarted with lineage-gaps redirected.'
+              tail -n 30 "$LOG_PATH" || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          tail -n 150 "$LOG_PATH" || true
+          exit 1
+          REMOTE
