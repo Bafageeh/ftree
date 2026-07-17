@@ -120,7 +120,16 @@ export function LineageAwareSvgGenealogyTree({
   const focusOn = (person: Person) => {
     setFocusedRootId(person.id);
     setSelectedId(person.id);
-    setExpandedIds(defaultExpandedPath(person, graph.childrenByParent, visibleIds, maxGenerations));
+
+    // بطاقة الشجرة تعرض الشخص المختار أصلًا جديدًا، ثم تفتح جميع فروع
+    // أبنائه وأحفاده داخل نافذة الأجيال الخمسة. بطاقة المسار إلى النبي
+    // تبقى مستقلة ولا تتحكم في هذا الرسم.
+    setExpandedIds(collectExpandableIds(
+      person,
+      graph.childrenByParent,
+      visibleIds,
+      maxGenerations,
+    ));
   };
 
   const handleNodePress = (person: Person) => {
@@ -271,7 +280,7 @@ export function LineageAwareSvgGenealogyTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>عند الضغط على أي ابن يختفي إخوته وفرع الأب السابق، ويصبح الابن بداية نافذة جديدة من خمسة أجيال.</Text>
+        <Text style={styles.tipText}>عند اختيار شخص تظهر في بطاقة الشجرة جميع فروع أبنائه وأحفاده حتى خمسة أجيال. وعند الضغط على ابن يصبح هو بداية شجرة مستقلة وتختفي فروع إخوته.</Text>
       </View>
     </View>
   );
