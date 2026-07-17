@@ -25,6 +25,7 @@ type ViewMode = 'diagram' | 'list';
 
 const branchLabels: Record<string, string> = {
   central_trunk: 'الجذع الأوسط',
+  alawi_mirbat: 'فرع علوي بن محمد صاحب مرباط',
   alawi_faqih: 'فرع علوي بن الفقيه المقدم',
   ali_alawi_faqih: 'فرع علي بن علوي بن الفقيه المقدم',
   abdullah_alawi_faqih: 'فرع عبد الله بن علوي بن الفقيه المقدم',
