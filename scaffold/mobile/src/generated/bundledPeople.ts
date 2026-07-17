@@ -39,6 +39,15 @@ export const bundledPeople: Person[] = [
   // ابنا علوي بن محمد الفقيه المقدم.
   core(20, 'علي بن علوي بن محمد الفقيه المقدم', 'CORE-020', 19, 20, 'ali_alawi_faqih'),
   core(21, 'عبد الله بن علوي بن محمد الفقيه المقدم', 'CORE-021', 19, 20, 'abdullah_alawi_faqih'),
+
+  // الدفعة الأولى المقروءة من القسمين المكبرين S02-03 و S03-03.
+  core(2301, 'حسن الترابي', 'ALI-FAQIH-HASAN-TURABI', 23, 20, 'ali_faqih', undefined, 2301),
+  core(2302, 'محمد أسد الله', 'ALI-FAQIH-MUHAMMAD-ASAD-ALLAH', 2301, 21, 'ali_faqih', undefined, 2302),
+  core(2303, 'حسن المعلم', 'ALI-FAQIH-HASAN-MUALLIM', 2302, 22, 'ali_faqih', undefined, 2303),
+  core(2304, 'أحمد بن محمد أسد الله', 'ALI-FAQIH-AHMAD-ASAD-ALLAH', 2302, 22, 'ali_faqih', undefined, 2304),
+  core(2305, 'محمد بن حسن المعلم', 'ALI-FAQIH-MUHAMMAD-HASAN-MUALLIM', 2303, 23, 'ali_faqih', undefined, 2305),
+  core(2306, 'علوي بن أحمد بن محمد أسد الله', 'ALI-FAQIH-ALAWI-AHMAD', 2304, 23, 'ali_faqih', undefined, 2306),
+  unclear(2307, 'S03-03-U001', 2304, 23, 'ali_faqih', 2307),
 ];
 
 function core(
@@ -69,6 +78,37 @@ function core(
     summary: 'قراءة مباشرة من المشجرة الأصلية، مع ربط الابن بأبيه في سلم النسب.',
     source_reference: sourceReference,
     source_locator: source_code,
+    chart_order,
+    is_living: false,
+  };
+}
+
+function unclear(
+  id: number,
+  source_code: string,
+  lineage_parent_id: number,
+  generation: number,
+  chart_branch: string,
+  chart_order = id,
+): Person {
+  return {
+    id,
+    full_name: source_code,
+    source_code,
+    node_type: 'person',
+    honorific: null,
+    lineage_parent_id,
+    status: 'unclear',
+    approval_status: 'pending_supervisor',
+    is_provisional: true,
+    supervisor_note: 'رمز مؤقت؛ العلاقة مقروءة والاسم يحتاج استبدالًا.',
+    approved_at: null,
+    chart_branch,
+    chart_color: chartColor(chart_branch),
+    generation,
+    summary: 'عقدة نسب صحيحة موضعيًا باسم مؤقت حتى تصحيح القراءة.',
+    source_reference: 'مشجرة أصول السادة آل باعلوي - النسخة المقسمة المكبرة',
+    source_locator: 'S03-03',
     chart_order,
     is_living: false,
   };
