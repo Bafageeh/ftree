@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PersonLineageContextCard } from '../../src/components/PersonLineageContextCard';
+import { PersonManagementCard } from '../../src/components/PersonManagementCard';
 import { getLineage } from '../../src/lib/api';
 import { reviewPerson, type SupervisorDecision } from '../../src/lib/supervisor';
 import { colors, radius, shadow } from '../../src/theme';
@@ -19,7 +20,7 @@ export default function PersonDetailsScreen() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadDetails = async () => {
     const personId = Number(id);
     if (!Number.isFinite(personId)) {
       setLoadError('رقم الاسم غير صحيح.');
@@ -27,17 +28,18 @@ export default function PersonDetailsScreen() {
     }
 
     setLoadError(null);
-    getLineage(personId)
-      .then((result) => {
-        setData(result);
-        setName(result.person.full_name);
-        setNote(result.person.supervisor_note ?? '');
-      })
-      .catch((error) => {
-        setData(null);
-        setLoadError(error instanceof Error ? error.message : 'تعذر تحميل مسار النسب.');
-      });
-  }, [id]);
+    try {
+      const result = await getLineage(personId);
+      setData(result);
+      setName(result.person.full_name);
+      setNote(result.person.supervisor_note ?? '');
+    } catch (error) {
+      setData(null);
+      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل مسار النسب.');
+    }
+  };
+
+  useEffect(() => { void loadDetails(); }, [id]);
 
   if (loadError) {
     return (
@@ -62,6 +64,9 @@ export default function PersonDetailsScreen() {
   const rejected = person.approval_status === 'rejected';
   const pending = person.approval_status === 'pending_supervisor' || person.is_provisional;
   const approval = rejected ? 'مرفوض من المشرف' : pending ? 'بانتظار اعتماد المشرف' : 'معتمد من المشرف';
+  const children = data.children ?? person.children ?? [];
+  const childrenCount = data.children_count ?? children.length;
+  const descendantsCount = data.descendants_count ?? childrenCount;
 
   const save = async (decision: SupervisorDecision) => {
     if (saving) return;
@@ -93,7 +98,7 @@ export default function PersonDetailsScreen() {
       : decision === 'reject' ? 'سيختفي الاسم من الشجرة العامة ويبقى في السجل.' : 'سيبقى الاسم للمراجعة لاحقًا.';
     Alert.alert(title, message, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: decision === 'reject' ? 'رفض' : 'تأكيد', style: decision === 'reject' ? 'destructive' : 'default', onPress: () => save(decision) },
+      { text: decision === 'reject' ? 'رفض' : 'تأكيد', style: decision === 'reject' ? 'destructive' : 'default', onPress: () => void save(decision) },
     ]);
   };
 
@@ -114,6 +119,19 @@ export default function PersonDetailsScreen() {
 
         <PersonLineageContextCard person={person} path={data.path} />
 
+        <PersonManagementCard
+          person={person}
+          children={children}
+          childrenCount={childrenCount}
+          descendantsCount={descendantsCount}
+          onUpdated={(updated) => {
+            setData((current) => current ? updateLineage(current, updated) : current);
+            setName(updated.full_name);
+            setNote(updated.supervisor_note ?? '');
+          }}
+          onReload={loadDetails}
+        />
+
         {pending && (
           <View style={styles.card}>
             <Title icon="shield-checkmark" text="قرار المشرف" />
@@ -128,7 +146,7 @@ export default function PersonDetailsScreen() {
         )}
 
         <View style={styles.row}>
-          <SmallButton icon="share-social" text="مشاركة" onPress={() => Share.share({ message: shareText })} />
+          <SmallButton icon="share-social" text="مشاركة" onPress={() => void Share.share({ message: shareText })} />
           <SmallButton icon="create" text="اقترح تصحيحًا" onPress={contribute} primary />
         </View>
 
