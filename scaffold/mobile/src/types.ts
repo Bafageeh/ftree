@@ -25,6 +25,8 @@ export type Person = {
   source_locator?: string | null;
   chart_order?: number | null;
   is_living: boolean;
+  parent?: Person | null;
+  children?: Person[];
 };
 
 export type Stats = {
@@ -53,6 +55,9 @@ export type PaginatedPeople = {
 
 export type LineageResponse = {
   person: Person;
+  children?: Person[];
+  children_count?: number;
+  descendants_count?: number;
   connected_to_prophet?: boolean;
   fully_confirmed?: boolean;
   pending_review_count?: number;
