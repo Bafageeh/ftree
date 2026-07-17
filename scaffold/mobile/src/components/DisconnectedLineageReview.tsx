@@ -133,22 +133,15 @@ export function DisconnectedLineageCard({ item }: { item: DisconnectedLineageIte
       )) : !item.pdfSuggestion ? (
         <View style={styles.pdfBox}>
           <Ionicons name="document-attach" size={22} color="#8A661E" />
-          <Text style={styles.pdfText}>لا يوجد سهم مقروء يحدد الأب. افتح مشجرة السادة الأصلية وراجع الخط المتصل بالاسم قبل اقتراح الأب.</Text>
+          <Text style={styles.pdfText}>لا يوجد سهم مقروء يحدد الأب. يحتاج هذا الاسم إلى مراجعة المشجرة الأصلية أو صورة مكبرة من موضعه.</Text>
         </View>
       ) : null}
 
       {!!item.person.source_locator && <Text style={styles.locator}>الموضع: {item.person.source_locator}</Text>}
-
-      <View style={styles.actions}>
-        <Pressable onPress={() => router.push('/source-chart')} style={({ pressed }) => [styles.sourceButton, pressed && styles.pressed]}>
-          <Ionicons name="search" size={18} color={colors.primary} />
-          <Text style={styles.sourceText}>فتح المشجرة الأصلية</Text>
-        </Pressable>
-        <Pressable onPress={() => router.push(`/person/${item.person.id}`)} style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}>
-          <Ionicons name="git-network" size={19} color={colors.white} />
-          <Text style={styles.openText}>فتح الاسم ومراجعة موضعه</Text>
-        </Pressable>
-      </View>
+      <Pressable onPress={() => router.push(`/person/${item.person.id}`)} style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}>
+        <Ionicons name="git-network" size={19} color={colors.white} />
+        <Text style={styles.openText}>فتح الاسم ومراجعة موضعه</Text>
+      </Pressable>
     </View>
   );
 }
@@ -208,10 +201,7 @@ const styles = StyleSheet.create({
   pdfNote: { color: colors.text, fontSize: 11, lineHeight: 19, marginTop: 6, textAlign: 'right' },
   pdfBox: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginTop: 7, padding: 11 },
   pdfText: { color: colors.text, flex: 1, fontSize: 11, lineHeight: 19, textAlign: 'right' },
-  actions: { gap: 8, marginTop: 13 },
-  sourceButton: { alignItems: 'center', backgroundColor: colors.goldSoft, borderColor: '#D7BF7A', borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', minHeight: 45 },
-  sourceText: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  openButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', minHeight: 48 },
+  openButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', marginTop: 13, minHeight: 48 },
   openText: { color: colors.white, fontSize: 13, fontWeight: '900' },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
 });
