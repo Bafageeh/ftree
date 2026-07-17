@@ -92,9 +92,13 @@ jobs:
           grep -Fq "from 'react-native-svg'" "$TREE_FILE"
           grep -Fq 'MIN_ZOOM = 0.5' "$TREE_FILE"
           grep -Fq 'MAX_ZOOM = 2' "$TREE_FILE"
+          grep -Fq 'MAX_VISIBLE_GENERATIONS = 5' "$TREE_FILE"
+          grep -Fq 'collectGenerationWindow' "$TREE_FILE"
+          grep -Fq 'focusedRootId' "$TREE_FILE"
           grep -Fq 'TreeZoomToolbar' "$TREE_FILE"
           grep -Fq 'createSvgTreeLayout' "$TREE_FILE"
           grep -Fq 'stroke="url(#branchGradient)"' "$TREE_FILE"
+          grep -Fq 'فتح 5 أجيال' "$ZOOM_FILE"
           grep -Fq 'ملاءمة' "$ZOOM_FILE"
           ! grep -Fq 'setLayoutAnimationEnabledExperimental' "$TREE_FILE"
 
@@ -129,7 +133,7 @@ jobs:
 
           for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
-              echo 'Shajara Expo restarted with zoomable SVG genealogy renderer.'
+              echo 'Shajara Expo restarted with five-generation focused SVG renderer.'
               tail -n 30 "$LOG_PATH" || true
               exit 0
             fi
