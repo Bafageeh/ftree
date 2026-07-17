@@ -21,6 +21,8 @@ type DeletePersonResponse = {
   descendants_deleted: number;
 };
 
+type PersonResourceResponse = { data: Person };
+
 async function request<T>(path: string, method: 'PATCH' | 'POST' | 'DELETE', body?: unknown): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
@@ -48,8 +50,10 @@ async function request<T>(path: string, method: 'PATCH' | 'POST' | 'DELETE', bod
   }
 }
 
-export function updatePersonDetails(personId: number, payload: UpdatePersonPayload): Promise<Person> {
-  return request<Person>(`/people/${personId}`, 'PATCH', payload);
+export async function updatePersonDetails(personId: number, payload: UpdatePersonPayload): Promise<Person> {
+  const result = await request<PersonResourceResponse>(`/people/${personId}`, 'PATCH', payload);
+  if (!result.data) throw new Error('لم يعد الخادم بيانات الاسم بعد التعديل.');
+  return result.data;
 }
 
 export function addChildrenToPerson(personId: number, count: number, names: string[]): Promise<AddChildrenResponse> {
