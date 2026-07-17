@@ -75,8 +75,13 @@ jobs:
 
           test -s "$MOBILE_PATH/package.json"
           test -s "$MOBILE_PATH/app/lineage-gaps.tsx"
+          test -s "$MOBILE_PATH/src/generated/bundledPeople.ts"
           grep -q 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
           ! grep -q "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
+          grep -q "علوي بن محمد صاحب مرباط" "$MOBILE_PATH/src/generated/bundledPeople.ts"
+          grep -q "أحمد بن محمد الفقيه المقدم" "$MOBILE_PATH/src/generated/bundledPeople.ts"
+          grep -q "عبد الرحمن بن محمد الفقيه المقدم" "$MOBILE_PATH/src/generated/bundledPeople.ts"
+          grep -q "lineage_parent_id: 18" "$MOBILE_PATH/src/generated/bundledPeople.ts"
 
           cd "$MOBILE_PATH"
           if [[ ! -d node_modules ]]; then
@@ -94,7 +99,7 @@ jobs:
 
           for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
-              echo 'Shajara Expo restarted with lineage-gaps redirected.'
+              echo 'Shajara Expo restarted with the branched offline genealogy.'
               tail -n 30 "$LOG_PATH" || true
               exit 0
             fi
