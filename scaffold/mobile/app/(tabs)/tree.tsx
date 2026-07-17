@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GenealogyTree } from '../../src/components/GenealogyTree';
 import { PersonCard } from '../../src/components/PersonCard';
 import { getChartEdges, getPeople } from '../../src/lib/api';
+import { searchPeopleByLineage } from '../../src/lib/lineageSearch';
 import { colors, radius, shadow } from '../../src/theme';
 import type { ChartEdge, Person } from '../../src/types';
 
@@ -58,10 +59,7 @@ export default function TreeScreen() {
 
   const listPeople = useMemo(() => {
     const query = search.trim();
-    return people.filter((person) => {
-      const text = `${person.full_name} ${person.source_code ?? ''} ${person.honorific ?? ''} ${person.source_locator ?? ''}`;
-      return !query || text.includes(query);
-    });
+    return query ? searchPeopleByLineage(people, query) : people;
   }, [people, search]);
 
   if (loading && people.length === 0) {
@@ -80,13 +78,21 @@ export default function TreeScreen() {
             <Header mode={mode} onModeChange={setMode} />
             <View style={styles.searchBox}>
               <Ionicons name="search" size={22} color={colors.muted} />
-              <TextInput value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو رمز القراءة" placeholderTextColor={colors.muted} style={styles.searchInput} textAlign="right" />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="مثال: أحمد علوي هاشم — الاسم ثم الأب ثم الجد"
+                placeholderTextColor={colors.muted}
+                style={styles.searchInput}
+                textAlign="right"
+              />
               {!!search && <Pressable onPress={() => setSearch('')}><Ionicons name="close-circle" size={21} color={colors.muted} /></Pressable>}
             </View>
+            <Text style={styles.searchHint}>اكتب الاسم الأول، ثم اسم الأب، ثم الجد. يدعم الأسماء المركبة مثل عبد الرحمن ومحمد جمل الليل.</Text>
             <View style={styles.resultsHeader}><Text style={styles.resultsTitle}>فهرس الأسماء</Text><Text style={styles.resultsCount}>{listPeople.length} من {people.length}</Text></View>
           </>}
           renderItem={({ item }) => <View style={styles.cardGap}><PersonCard person={item} onPress={() => router.push(`/person/${item.id}`)} /></View>}
-          ListEmptyComponent={<Text style={styles.empty}>لا توجد نتائج مطابقة.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>لا توجد سلسلة نسب مطابقة بهذا الترتيب.</Text>}
         />
       </SafeAreaView>
     );
@@ -139,8 +145,9 @@ const styles = StyleSheet.create({
   modeActive: { backgroundColor: colors.primary },
   modeText: { color: colors.primary, fontSize: 14, fontWeight: '900' },
   modeTextActive: { color: colors.white },
-  searchBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 9, marginBottom: 14, minHeight: 60, paddingHorizontal: 16, ...shadow },
-  searchInput: { color: colors.text, flex: 1, fontSize: 15 },
+  searchBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 9, marginBottom: 7, minHeight: 60, paddingHorizontal: 16, ...shadow },
+  searchInput: { color: colors.text, flex: 1, fontSize: 14 },
+  searchHint: { color: colors.muted, fontSize: 10, lineHeight: 18, marginBottom: 14, paddingHorizontal: 4, textAlign: 'right' },
   resultsHeader: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 12 },
   resultsTitle: { color: colors.primary, fontSize: 21, fontWeight: '900' },
   resultsCount: { color: colors.muted, fontSize: 12 },
