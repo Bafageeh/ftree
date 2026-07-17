@@ -163,14 +163,15 @@ export function ZoomableSvgGenealogyTree({
     const children = (graph.childrenByParent.get(person.id) ?? [])
       .filter((child) => connectedVisibleIds.has(child.id));
     setSelectedId(person.id);
-    if (!children.length) return;
 
-    // Opening any descendant makes it the new visible root. This removes all
-    // older ancestors from the canvas and keeps memory/rendering bounded.
+    // Any selected child becomes the only visible branch root. All siblings and
+    // the older parent branch disappear immediately, even when the child is a leaf.
     if (person.id !== focusedRoot?.id) {
       focusOn(person);
       return;
     }
+
+    if (!children.length) return;
 
     setExpandedIds((current) => {
       const next = new Set(current);
@@ -219,7 +220,7 @@ export function ZoomableSvgGenealogyTree({
         <Ionicons name="git-network" size={24} color={colors.gold} />
         <View style={styles.flex}>
           <Text style={styles.noticeTitle}>نافذة شجرة خفيفة: 5 أجيال</Text>
-          <Text style={styles.noticeText}>يُعرض خمسة أجيال فقط. عند فتح ابن يصبح هو بداية العرض وتختفي الأجيال الأقدم لتقليل استهلاك الذاكرة.</Text>
+          <Text style={styles.noticeText}>يُعرض خمسة أجيال فقط. عند اختيار ابن يصبح هو الفرع الوحيد المعروض، وتختفي الأجيال الأقدم وإخوته لتقليل استهلاك الذاكرة.</Text>
         </View>
       </View>
 
@@ -362,7 +363,7 @@ export function ZoomableSvgGenealogyTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>عند الوصول إلى الجيل الخامس اضغط على الاسم ذي الأبناء؛ سيصبح هو بداية نافذة جديدة من خمسة أجيال.</Text>
+        <Text style={styles.tipText}>عند الضغط على أي ابن يختفي إخوته وفرع الأب السابق، ويصبح الابن بداية نافذة جديدة من خمسة أجيال.</Text>
       </View>
     </View>
   );
