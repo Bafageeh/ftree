@@ -45,9 +45,15 @@ export const bundledPeople: Person[] = [
   core(2302, 'محمد أسد الله', 'ALI-FAQIH-MUHAMMAD-ASAD-ALLAH', 2301, 21, 'ali_faqih', undefined, 2302),
   core(2303, 'حسن المعلم', 'ALI-FAQIH-HASAN-MUALLIM', 2302, 22, 'ali_faqih', undefined, 2303),
   core(2304, 'أحمد بن محمد أسد الله', 'ALI-FAQIH-AHMAD-ASAD-ALLAH', 2302, 22, 'ali_faqih', undefined, 2304),
-  core(2305, 'محمد بن حسن المعلم', 'ALI-FAQIH-MUHAMMAD-HASAN-MUALLIM', 2303, 23, 'ali_faqih', undefined, 2305),
+  core(2305, 'محمد جمل الليل بن حسن المعلم', 'ALI-FAQIH-MUHAMMAD-HASAN-MUALLIM', 2303, 23, 'ali_faqih', 'جمل الليل', 2305),
   core(2306, 'علوي بن أحمد بن محمد أسد الله', 'ALI-FAQIH-ALAWI-AHMAD', 2304, 23, 'ali_faqih', undefined, 2306),
-  unclear(2307, 'S03-03-U001', 2304, 23, 'ali_faqih', 2307),
+  unclear(2307, 'S03-03-U001', 2302, 22, 'ali_faqih', 2307),
+
+  // الدفعة الثانية: ذرية حسن المعلم ومحمد جمل الليل.
+  core(2308, 'أحمد بن حسن المعلم', 'ALI-FAQIH-AHMAD-HASAN-MUALLIM', 2303, 23, 'ali_faqih', undefined, 2308),
+  core(2309, 'علي بن محمد جمل الليل', 'JAMAL-ALLAYL-ALI', 2305, 24, 'ali_faqih', undefined, 2309),
+  core(2310, 'عبد الله بن محمد جمل الليل', 'JAMAL-ALLAYL-ABDULLAH', 2305, 24, 'ali_faqih', undefined, 2310),
+  core(2311, 'أحمد بن عبد الله بن محمد جمل الليل', 'JAMAL-ALLAYL-AHMAD-BIN-ABDULLAH', 2310, 25, 'ali_faqih', 'جد آل باحسن', 2311),
 ];
 
 function core(
