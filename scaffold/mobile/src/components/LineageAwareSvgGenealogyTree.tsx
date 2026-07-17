@@ -44,6 +44,8 @@ export function LineageAwareSvgGenealogyTree({
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const [zoom, setZoom] = useState(1);
   const initializedRootId = useRef<number | null>(null);
+  const treeScrollRef = useRef<ScrollView>(null);
+  const viewportWidth = Math.max(screenWidth - 36, 320);
 
   const graph = useMemo(() => buildGraph(people), [people]);
 
@@ -92,10 +94,10 @@ export function LineageAwareSvgGenealogyTree({
       graph.childrenByParent,
       window.ids,
       expandedIds,
-      Math.max(screenWidth - 36, 320),
+      viewportWidth,
     )
-    : { width: Math.max(screenWidth - 36, 320), height: 220, nodes: [], connectors: [] },
-  [expandedIds, focusedRoot, graph.childrenByParent, screenWidth, window.ids]);
+    : { width: viewportWidth, height: 220, nodes: [], connectors: [] },
+  [expandedIds, focusedRoot, graph.childrenByParent, viewportWidth, window.ids]);
 
   const matches = useMemo(() => {
     const text = query.trim();
@@ -112,18 +114,43 @@ export function LineageAwareSvgGenealogyTree({
   const canvasWidth = Math.max(1, layout.width * zoom);
   const canvasHeight = Math.max(1, layout.height * zoom);
 
-  const setSafeZoom = (value: number) => {
-    const bounded = Math.max(minZoom, Math.min(maxZoom, value));
-    setZoom(Math.round(bounded * 100) / 100);
+  const centerTree = (targetZoom: number, animated = true) => {
+    const scaledWidth = layout.width * targetZoom;
+    const centerX = Math.max(0, (scaledWidth - viewportWidth) / 2);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => treeScrollRef.current?.scrollTo({ x: centerX, y: 0, animated }));
+    });
   };
+
+  const setSafeZoom = (value: number, animated = true) => {
+    const bounded = Math.max(minZoom, Math.min(maxZoom, value));
+    const nextZoom = Math.round(bounded * 100) / 100;
+    setZoom(nextZoom);
+    centerTree(nextZoom, animated);
+  };
+
+  const fitAndCenter = (animated = true) => {
+    const fittedZoom = Math.min(1, viewportWidth / Math.max(layout.width, 1));
+    setSafeZoom(fittedZoom, animated);
+  };
+
+  useEffect(() => {
+    const fittedZoom = Math.max(minZoom, Math.min(1, viewportWidth / Math.max(layout.width, 1)));
+    const nextZoom = Math.round(fittedZoom * 100) / 100;
+    setZoom(nextZoom);
+
+    const timer = setTimeout(() => {
+      const scaledWidth = layout.width * nextZoom;
+      const centerX = Math.max(0, (scaledWidth - viewportWidth) / 2);
+      treeScrollRef.current?.scrollTo({ x: centerX, y: 0, animated: false });
+    }, 80);
+
+    return () => clearTimeout(timer);
+  }, [focusedRootId, layout.width, viewportWidth]);
 
   const focusOn = (person: Person) => {
     setFocusedRootId(person.id);
     setSelectedId(person.id);
-
-    // بطاقة الشجرة تعرض الشخص المختار أصلًا جديدًا، ثم تفتح جميع فروع
-    // أبنائه وأحفاده داخل نافذة الأجيال الخمسة. بطاقة المسار إلى النبي
-    // تبقى مستقلة ولا تتحكم في هذا الرسم.
     setExpandedIds(collectExpandableIds(
       person,
       graph.childrenByParent,
@@ -189,7 +216,7 @@ export function LineageAwareSvgGenealogyTree({
         onZoomIn={() => setSafeZoom(zoom + zoomStep)}
         onZoomOut={() => setSafeZoom(zoom - zoomStep)}
         onReset={() => setSafeZoom(1)}
-        onFit={() => setSafeZoom(Math.min(1, Math.max(screenWidth - 54, 280) / layout.width))}
+        onFit={() => fitAndCenter()}
         onExpandAll={() => setExpandedIds(collectExpandableIds(focusedRoot, graph.childrenByParent, visibleIds, maxGenerations))}
         onCollapseAll={() => { setExpandedIds(new Set()); setSelectedId(null); }}
       />
@@ -239,7 +266,13 @@ export function LineageAwareSvgGenealogyTree({
       )}
 
       <View style={styles.canvasShell}>
-        <ScrollView horizontal bounces showsHorizontalScrollIndicator contentContainerStyle={[styles.canvasContent, { minWidth: Math.max(screenWidth - 36, 320) }]}>
+        <ScrollView
+          ref={treeScrollRef}
+          horizontal
+          bounces
+          showsHorizontalScrollIndicator
+          contentContainerStyle={[styles.canvasContent, { minWidth: viewportWidth }]}
+        >
           <View style={{ width: canvasWidth, height: canvasHeight }}>
             <Svg pointerEvents="none" width={canvasWidth} height={canvasHeight} viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="xMinYMin meet" style={StyleSheet.absoluteFill}>
               <Defs>
@@ -280,7 +313,7 @@ export function LineageAwareSvgGenealogyTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>عند اختيار شخص تظهر في بطاقة الشجرة جميع فروع أبنائه وأحفاده حتى خمسة أجيال. وعند الضغط على ابن يصبح هو بداية شجرة مستقلة وتختفي فروع إخوته.</Text>
+        <Text style={styles.tipText}>تُنفذ الملاءمة والتوسيط تلقائيًا عند اختيار أي شخص، مع بقاء التكبير والتصغير متاحين يدويًا.</Text>
       </View>
     </View>
   );
