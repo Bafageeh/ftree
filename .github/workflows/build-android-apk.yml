@@ -39,10 +39,11 @@ jobs:
         run: |
           set -euo pipefail
           npx create-expo-app@latest shajara-mobile --template default@sdk-57 --yes
-          rm -rf shajara-mobile/app shajara-mobile/src
-          mkdir -p shajara-mobile/app shajara-mobile/src
+          rm -rf shajara-mobile/app shajara-mobile/src shajara-mobile/scripts
+          mkdir -p shajara-mobile/app shajara-mobile/src shajara-mobile/scripts shajara-mobile/assets
           cp -a scaffold/mobile/app/. shajara-mobile/app/
           cp -a scaffold/mobile/src/. shajara-mobile/src/
+          cp -a scaffold/mobile/scripts/. shajara-mobile/scripts/
           cp scaffold/mobile/app.json shajara-mobile/app.json
 
       - name: Bundle the latest genealogy snapshot
@@ -109,7 +110,7 @@ jobs:
           grep -q 'bundledPeople' shajara-mobile/src/generated/bundledPeople.ts
           grep -q 'bundledEdges' shajara-mobile/src/generated/bundledEdges.ts
 
-      - name: Install Expo dependencies
+      - name: Install Expo dependencies and generate official icon
         working-directory: shajara-mobile
         shell: bash
         run: |
@@ -125,6 +126,12 @@ jobs:
             react-native-web \
             @expo/metro-runtime
           npx expo install --fix
+          npm install --no-save --no-audit --no-fund sharp
+          node scripts/generate-shajara-icon.js assets
+          test -s assets/icon.png
+          test -s assets/adaptive-icon.png
+          test -s assets/splash-icon.png
+          test -s assets/favicon.png
           npx tsc --noEmit
 
       - name: Generate native Android project
