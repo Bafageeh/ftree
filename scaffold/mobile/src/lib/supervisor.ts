@@ -1,5 +1,5 @@
 import { API_URL } from './api';
-import type { Person, ReadingStatus } from '../types';
+import type { ChartEdge, Person, ReadingStatus } from '../types';
 
 export type SupervisorDecision = 'approve' | 'pending' | 'reject';
 
@@ -10,14 +10,22 @@ export type PersonReviewPayload = {
   note?: string;
 };
 
-type PersonResourceResponse = { data: Person };
+export type EdgeReviewPayload = {
+  decision: SupervisorDecision;
+  reverse?: boolean;
+  reading_status?: ReadingStatus;
+  note?: string;
+};
 
-export async function reviewPerson(personId: number, payload: PersonReviewPayload): Promise<Person> {
+type PersonResourceResponse = { data: Person };
+type EdgeResourceResponse = { data: ChartEdge };
+
+async function postReview<T>(path: string, payload: unknown, missingMessage: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const response = await fetch(`${API_URL}/people/${personId}/review`, {
+    const response = await fetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -27,16 +35,33 @@ export async function reviewPerson(personId: number, payload: PersonReviewPayloa
       signal: controller.signal,
     });
 
-    const result = await response.json().catch(() => null) as PersonResourceResponse | { message?: string; errors?: Record<string, string[]> } | null;
+    const result = await response.json().catch(() => null) as { data?: T; message?: string; errors?: Record<string, string[]> } | null;
     if (!response.ok) {
-      const errors = result && 'errors' in result ? result.errors : undefined;
-      const message = errors ? Object.values(errors).flat()[0] : result && 'message' in result ? result.message : undefined;
+      const message = result?.errors
+        ? Object.values(result.errors).flat()[0]
+        : result?.message;
       throw new Error(message || 'تعذر حفظ قرار المشرف.');
     }
 
-    if (!result || !('data' in result)) throw new Error('لم يعد الخادم بيانات الاسم بعد المراجعة.');
+    if (!result?.data) throw new Error(missingMessage);
     return result.data;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function reviewPerson(personId: number, payload: PersonReviewPayload): Promise<Person> {
+  return postReview<Person>(
+    `/people/${personId}/review`,
+    payload,
+    'لم يعد الخادم بيانات الاسم بعد المراجعة.',
+  );
+}
+
+export function reviewEdge(edgeId: number, payload: EdgeReviewPayload): Promise<ChartEdge> {
+  return postReview<ChartEdge>(
+    `/chart-edges/${edgeId}/review`,
+    payload,
+    'لم يعد الخادم بيانات العلاقة بعد المراجعة.',
+  );
 }
