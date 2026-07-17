@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -11,7 +10,7 @@ return new class extends Migration
         $mirbat = DB::table('people')->where('source_code', 'CORE-016')->first();
 
         if (! $mirbat) {
-            throw new RuntimeException('CORE-016 Muhammad Sahib Mirbat was not found.');
+            throw new \RuntimeException('CORE-016 Muhammad Sahib Mirbat was not found.');
         }
 
         $now = now();
@@ -64,7 +63,7 @@ return new class extends Migration
 
         foreach (['علي بن محمد صاحب مرباط', 'علوي بن محمد صاحب مرباط'] as $required) {
             if (! $names->contains($required)) {
-                throw new RuntimeException('Missing verified child: '.$required);
+                throw new \RuntimeException('Missing verified child: '.$required);
             }
         }
     }
