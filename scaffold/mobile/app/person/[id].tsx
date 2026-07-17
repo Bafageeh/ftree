@@ -13,6 +13,7 @@ import type { LineageResponse, Person } from '../../src/types';
 export default function PersonDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<LineageResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
@@ -20,13 +21,40 @@ export default function PersonDetailsScreen() {
 
   useEffect(() => {
     const personId = Number(id);
-    if (!Number.isFinite(personId)) return;
-    getLineage(personId).then((result) => {
-      setData(result);
-      setName(result.person.full_name);
-      setNote(result.person.supervisor_note ?? '');
-    });
+    if (!Number.isFinite(personId)) {
+      setLoadError('رقم الاسم غير صحيح.');
+      return;
+    }
+
+    setLoadError(null);
+    getLineage(personId)
+      .then((result) => {
+        setData(result);
+        setName(result.person.full_name);
+        setNote(result.person.supervisor_note ?? '');
+      })
+      .catch((error) => {
+        setData(null);
+        setLoadError(error instanceof Error ? error.message : 'تعذر تحميل مسار النسب.');
+      });
   }, [id]);
+
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <View style={styles.blocked}>
+          <Ionicons name="close-circle" size={56} color={colors.danger} />
+          <Text style={styles.blockedTitle}>أُلغي هذا النسب من التطبيق</Text>
+          <Text style={styles.blockedText}>{loadError}</Text>
+          <Text style={styles.blockedNote}>لا يظهر في شجرة النسب الشريف إلا الاسم الذي يمكن تتبع آبائه حتى سيد البشر محمد ﷺ.</Text>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-forward" size={19} color={colors.white} />
+            <Text style={styles.backButtonText}>الرجوع</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!data) return <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>;
 
@@ -61,7 +89,7 @@ export default function PersonDetailsScreen() {
   const confirm = (decision: SupervisorDecision) => {
     const title = decision === 'approve' ? 'اعتماد الاسم' : decision === 'reject' ? 'رفض القراءة' : 'إبقاء للمراجعة';
     const message = decision === 'approve'
-      ? `هل تعتمد «${name.trim() || person.full_name}» بعد مراجعة أبيه ومساره؟`
+      ? `هل تعتمد «${name.trim() || person.full_name}» بعد مراجعة كامل مساره حتى محمد ﷺ؟`
       : decision === 'reject' ? 'سيختفي الاسم من الشجرة العامة ويبقى في السجل.' : 'سيبقى الاسم للمراجعة لاحقًا.';
     Alert.alert(title, message, [
       { text: 'إلغاء', style: 'cancel' },
@@ -69,7 +97,7 @@ export default function PersonDetailsScreen() {
     ]);
   };
 
-  const shareText = `${person.full_name} (${person.source_code ?? `#${person.id}`})\n${data.path_text || 'لم يربط مساره بعد.'}`;
+  const shareText = `${person.full_name} (${person.source_code ?? `#${person.id}`})\n${data.path_text}`;
   const contribute = () => router.push({ pathname: '/(tabs)/contribute', params: { personId: String(person.id), personName: person.full_name } });
 
   return (
@@ -82,9 +110,9 @@ export default function PersonDetailsScreen() {
           <Text style={styles.approval}>{approval}</Text>
         </View>
 
-        {pending && <View style={styles.warning}><Ionicons name="information-circle" size={21} color="#8A661E" /><Text style={styles.warningText}>لا تعتمد الاسم وحده؛ راجع أباه وفرعه ومساره أولًا.</Text></View>}
+        {pending && <View style={styles.warning}><Ionicons name="information-circle" size={21} color="#8A661E" /><Text style={styles.warningText}>لا تعتمد الاسم وحده؛ راجع كامل صلته بسيد البشر محمد ﷺ أولًا.</Text></View>}
 
-        <PersonLineageContextCard person={person} />
+        <PersonLineageContextCard person={person} path={data.path} />
 
         {pending && (
           <View style={styles.card}>
@@ -115,8 +143,8 @@ export default function PersonDetailsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Title icon="git-network" text="مسار النسب" />
-          <Text style={styles.path}>{data.path_text || 'الأب أو مسار النسب غير محدد بعد. راجع تبويب العلاقات.'}</Text>
+          <Title icon="git-network" text="سلسلة النسب النصية" />
+          <Text style={styles.path}>{data.path_text}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -139,13 +167,38 @@ function SmallButton({ icon, text, onPress, primary = false }: { icon: keyof typ
 function statusLabel(status: string) { return status === 'readable' ? 'مقروء بوضوح' : status === 'unclear' ? 'غير محسوم' : 'يحتاج مراجعة'; }
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: colors.background, flex: 1 }, loading: { alignItems: 'center', backgroundColor: colors.background, flex: 1, justifyContent: 'center' }, content: { padding: 18, paddingBottom: 70 },
-  profile: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.lg, padding: 24, ...shadow }, code: { color: '#E9C87E', fontSize: 12, fontWeight: '900', marginTop: 10 }, name: { color: colors.white, fontSize: 27, fontWeight: '900', marginTop: 6, textAlign: 'center' }, approval: { backgroundColor: colors.goldSoft, borderRadius: radius.pill, color: '#805D17', fontSize: 12, fontWeight: '900', marginTop: 13, paddingHorizontal: 13, paddingVertical: 7 },
-  warning: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginTop: 14, padding: 13 }, warningText: { color: colors.text, flex: 1, fontSize: 12, lineHeight: 20, textAlign: 'right' },
-  card: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, marginTop: 14, padding: 18, ...shadow }, titleRow: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 11 }, title: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  label: { color: colors.muted, fontSize: 12, marginBottom: 5, marginTop: 7, textAlign: 'right' }, input: { backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, color: colors.text, fontSize: 16, minHeight: 49, padding: 12 }, note: { minHeight: 88 },
-  approve: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, justifyContent: 'center', marginTop: 10, minHeight: 52 }, approveText: { color: colors.white, fontSize: 15, fontWeight: '900' }, row: { flexDirection: 'row-reverse', gap: 9, marginTop: 10 },
-  small: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, flex: 1, flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', minHeight: 49, paddingHorizontal: 8 }, smallPrimary: { backgroundColor: colors.primary }, smallText: { color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' }, smallTextPrimary: { color: colors.white },
-  reject: { alignItems: 'center', flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginTop: 9, minHeight: 43 }, rejectText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
-  detail: { borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 9 }, detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' }, detailValue: { color: colors.text, fontSize: 15, lineHeight: 24, marginTop: 4, textAlign: 'right' }, path: { color: colors.text, fontSize: 15, lineHeight: 27, textAlign: 'right' },
+  safe: { backgroundColor: colors.background, flex: 1 },
+  loading: { alignItems: 'center', backgroundColor: colors.background, flex: 1, justifyContent: 'center' },
+  content: { padding: 18, paddingBottom: 70 },
+  profile: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.lg, padding: 24, ...shadow },
+  code: { color: '#E9C87E', fontSize: 12, fontWeight: '900', marginTop: 10 },
+  name: { color: colors.white, fontSize: 27, fontWeight: '900', marginTop: 6, textAlign: 'center' },
+  approval: { backgroundColor: colors.goldSoft, borderRadius: radius.pill, color: '#805D17', fontSize: 12, fontWeight: '900', marginTop: 13, paddingHorizontal: 13, paddingVertical: 7 },
+  warning: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginTop: 14, padding: 13 },
+  warningText: { color: colors.text, flex: 1, fontSize: 12, lineHeight: 20, textAlign: 'right' },
+  card: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, marginTop: 14, padding: 18, ...shadow },
+  titleRow: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 11 },
+  title: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  label: { color: colors.muted, fontSize: 12, marginBottom: 5, marginTop: 7, textAlign: 'right' },
+  input: { backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, color: colors.text, fontSize: 16, minHeight: 49, padding: 12 },
+  note: { minHeight: 88 },
+  approve: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, justifyContent: 'center', marginTop: 10, minHeight: 52 },
+  approveText: { color: colors.white, fontSize: 15, fontWeight: '900' },
+  row: { flexDirection: 'row-reverse', gap: 9, marginTop: 10 },
+  small: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, flex: 1, flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', minHeight: 49, paddingHorizontal: 8 },
+  smallPrimary: { backgroundColor: colors.primary },
+  smallText: { color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  smallTextPrimary: { color: colors.white },
+  reject: { alignItems: 'center', flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginTop: 9, minHeight: 43 },
+  rejectText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
+  detail: { borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
+  detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' },
+  detailValue: { color: colors.text, fontSize: 15, lineHeight: 24, marginTop: 4, textAlign: 'right' },
+  path: { color: colors.text, fontSize: 15, lineHeight: 27, textAlign: 'right' },
+  blocked: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 },
+  blockedTitle: { color: colors.danger, fontSize: 23, fontWeight: '900', marginTop: 13, textAlign: 'center' },
+  blockedText: { color: colors.text, fontSize: 15, lineHeight: 25, marginTop: 9, textAlign: 'center' },
+  blockedNote: { color: colors.muted, fontSize: 12, lineHeight: 21, marginTop: 10, textAlign: 'center' },
+  backButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', marginTop: 20, minHeight: 50, paddingHorizontal: 26 },
+  backButtonText: { color: colors.white, fontSize: 14, fontWeight: '900' },
 });
