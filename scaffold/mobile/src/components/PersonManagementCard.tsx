@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 import { addChildrenToPerson, deletePersonSubtree, updatePersonDetails } from '../lib/personAdmin';
 import { colors, radius, shadow } from '../theme';
 import type { Person, ReadingStatus } from '../types';
+import { PersonProfileCard } from './PersonProfileCard';
 
 type Props = {
   person: Person;
@@ -106,61 +107,65 @@ export function PersonManagementCard({ person, children, childrenCount, descenda
   };
 
   return (
-    <View style={styles.card}>
-      <Title icon="settings" text="إدارة الاسم والذرية" />
-      <View style={styles.counterRow}>
-        <Counter value={childrenCount} label="الأبناء المباشرون" />
-        <Counter value={descendantsCount} label="جميع الذرية" />
-      </View>
+    <View>
+      <PersonProfileCard person={person} onUpdated={onUpdated} />
 
-      {editing ? (
-        <View>
-          <Label text="الاسم" />
-          <TextInput value={name} onChangeText={setName} style={styles.input} textAlign="right" />
-          <Label text="رمز المشجرة" />
-          <TextInput value={sourceCode} onChangeText={setSourceCode} style={styles.input} autoCapitalize="characters" textAlign="right" />
-          <Label text="اللقب أو الوصف" />
-          <TextInput value={honorific} onChangeText={setHonorific} style={styles.input} textAlign="right" />
-          <Label text="حالة القراءة" />
-          <StatusPicker value={status} onChange={setStatus} />
-          <Label text="الملاحظات" />
-          <TextInput value={note} onChangeText={setNote} style={[styles.input, styles.note]} multiline textAlign="right" />
-          <View style={styles.row}>
-            <Action icon="close" text="إلغاء" onPress={() => setEditing(false)} />
-            <Action icon="save" text="حفظ التعديل" onPress={() => void save()} primary />
+      <View style={styles.card}>
+        <Title icon="settings" text="إدارة الاسم والذرية" />
+        <View style={styles.counterRow}>
+          <Counter value={childrenCount} label="الأبناء المباشرون" />
+          <Counter value={descendantsCount} label="جميع الذرية" />
+        </View>
+
+        {editing ? (
+          <View>
+            <Label text="الاسم" />
+            <TextInput value={name} onChangeText={setName} style={styles.input} textAlign="right" />
+            <Label text="رمز المشجرة" />
+            <TextInput value={sourceCode} onChangeText={setSourceCode} style={styles.input} autoCapitalize="characters" textAlign="right" />
+            <Label text="اللقب أو الوصف" />
+            <TextInput value={honorific} onChangeText={setHonorific} style={styles.input} textAlign="right" />
+            <Label text="حالة القراءة" />
+            <StatusPicker value={status} onChange={setStatus} />
+            <Label text="الملاحظات" />
+            <TextInput value={note} onChangeText={setNote} style={[styles.input, styles.note]} multiline textAlign="right" />
+            <View style={styles.row}>
+              <Action icon="close" text="إلغاء" onPress={() => setEditing(false)} />
+              <Action icon="save" text="حفظ التعديل" onPress={() => void save()} primary />
+            </View>
           </View>
-        </View>
-      ) : (
-        <Action icon="create" text="تعديل بيانات الاسم" onPress={() => setEditing(true)} primary />
-      )}
+        ) : (
+          <Action icon="create" text="تعديل بيانات الاسم" onPress={() => setEditing(true)} primary />
+        )}
 
-      <View style={styles.divider} />
-      <Title icon="people" text="إضافة أبناء" />
-      <Label text="عدد الأبناء المراد إضافتهم" />
-      <TextInput value={count} onChangeText={setCount} style={styles.input} keyboardType="number-pad" textAlign="center" />
-      <Label text="أسماء الأبناء، كل اسم في سطر. يمكن تركها فارغة لإضافة رموز مؤقتة" />
-      <TextInput value={names} onChangeText={setNames} style={[styles.input, styles.names]} multiline placeholder={'الابن الأول\nالابن الثاني'} placeholderTextColor={colors.muted} textAlign="right" />
-      <Pressable disabled={busy} onPress={() => void addChildren()} style={styles.add}>
-        {busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="person-add" size={21} color={colors.white} />}
-        <Text style={styles.addText}>إضافة الأبناء</Text>
-      </Pressable>
+        <View style={styles.divider} />
+        <Title icon="people" text="إضافة أبناء" />
+        <Label text="عدد الأبناء المراد إضافتهم" />
+        <TextInput value={count} onChangeText={setCount} style={styles.input} keyboardType="number-pad" textAlign="center" />
+        <Label text="أسماء الأبناء، كل اسم في سطر. يمكن تركها فارغة لإضافة رموز مؤقتة" />
+        <TextInput value={names} onChangeText={setNames} style={[styles.input, styles.names]} multiline placeholder={'الابن الأول\nالابن الثاني'} placeholderTextColor={colors.muted} textAlign="right" />
+        <Pressable disabled={busy} onPress={() => void addChildren()} style={styles.add}>
+          {busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="person-add" size={21} color={colors.white} />}
+          <Text style={styles.addText}>إضافة الأبناء</Text>
+        </Pressable>
 
-      {!!children.length && (
-        <View style={styles.childrenList}>
-          {children.map((child) => (
-            <Pressable key={child.id} onPress={() => router.push(`/person/${child.id}`)} style={styles.childRow}>
-              <Ionicons name="chevron-back" size={18} color={colors.gold} />
-              <Text style={styles.childName}>{child.full_name}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+        {!!children.length && (
+          <View style={styles.childrenList}>
+            {children.map((child) => (
+              <Pressable key={child.id} onPress={() => router.push(`/person/${child.id}`)} style={styles.childRow}>
+                <Ionicons name="chevron-back" size={18} color={colors.gold} />
+                <Text style={styles.childName}>{child.full_name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
-      <View style={styles.divider} />
-      <Pressable disabled={busy || person.source_code === 'CORE-001'} onPress={removeBranch} style={[styles.remove, person.source_code === 'CORE-001' && styles.disabled]}>
-        <Ionicons name="trash" size={20} color={colors.white} />
-        <Text style={styles.removeText}>حذف الاسم وكل الأبناء والأحفاد</Text>
-      </Pressable>
+        <View style={styles.divider} />
+        <Pressable disabled={busy || person.source_code === 'CORE-001'} onPress={removeBranch} style={[styles.remove, person.source_code === 'CORE-001' && styles.disabled]}>
+          <Ionicons name="trash" size={20} color={colors.white} />
+          <Text style={styles.removeText}>حذف الاسم وكل الأبناء والأحفاد</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
