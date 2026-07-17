@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Person extends Model
 {
@@ -61,6 +62,12 @@ class Person extends Model
             $person->approval_status = 'supervisor_confirmed';
             $person->is_provisional = false;
             $person->approved_at ??= now();
+        });
+
+        static::deleted(function (Person $person): void {
+            if ($person->profile_photo_path) {
+                Storage::disk('public')->delete($person->profile_photo_path);
+            }
         });
     }
 
