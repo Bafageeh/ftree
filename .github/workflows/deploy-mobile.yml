@@ -74,7 +74,9 @@ jobs:
           LOG_PATH="$MOBILE_PATH/expo-8083.log"
           BUNDLE_FILE="$MOBILE_PATH/src/generated/bundledPeople.ts"
           TREE_ENTRY="$MOBILE_PATH/src/components/GenealogyTree.tsx"
-          TREE_FILE="$MOBILE_PATH/src/components/ZoomableSvgGenealogyTree.tsx"
+          TREE_FILE="$MOBILE_PATH/src/components/LineageAwareSvgGenealogyTree.tsx"
+          SEARCH_FILE="$MOBILE_PATH/src/lib/lineageSearch.ts"
+          WINDOW_FILE="$MOBILE_PATH/src/components/svg-tree/treeWindow.ts"
           ZOOM_FILE="$MOBILE_PATH/src/components/svg-tree/TreeZoomToolbar.tsx"
           LAYOUT_FILE="$MOBILE_PATH/src/components/svg-tree/layout.ts"
 
@@ -83,18 +85,25 @@ jobs:
           test -s "$BUNDLE_FILE"
           test -s "$TREE_ENTRY"
           test -s "$TREE_FILE"
+          test -s "$SEARCH_FILE"
+          test -s "$WINDOW_FILE"
           test -s "$ZOOM_FILE"
           test -s "$LAYOUT_FILE"
           grep -Fq 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
           ! grep -Fq "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
 
-          grep -Fq "ZoomableSvgGenealogyTree" "$TREE_ENTRY"
+          grep -Fq 'LineageAwareSvgGenealogyTree' "$TREE_ENTRY"
           grep -Fq "from 'react-native-svg'" "$TREE_FILE"
-          grep -Fq 'MIN_ZOOM = 0.5' "$TREE_FILE"
-          grep -Fq 'MAX_ZOOM = 2' "$TREE_FILE"
-          grep -Fq 'MAX_VISIBLE_GENERATIONS = 5' "$TREE_FILE"
-          grep -Fq 'collectGenerationWindow' "$TREE_FILE"
-          grep -Fq 'focusedRootId' "$TREE_FILE"
+          grep -Fq 'const minZoom = 0.5' "$TREE_FILE"
+          grep -Fq 'const maxZoom = 2' "$TREE_FILE"
+          grep -Fq 'const maxGenerations = 5' "$TREE_FILE"
+          grep -Fq 'searchPeopleByLineage' "$TREE_FILE"
+          grep -Fq 'formatLineageSearchPath' "$TREE_FILE"
+          grep -Fq 'الاسم ثم الأب ثم الجد' "$TREE_FILE"
+          grep -Fq 'collectGenerationWindow' "$WINDOW_FILE"
+          grep -Fq 'defaultExpandedPath' "$WINDOW_FILE"
+          grep -Fq 'maxCompoundWords = 5' "$SEARCH_FILE"
+          grep -Fq 'matchLineage' "$SEARCH_FILE"
           grep -Fq 'TreeZoomToolbar' "$TREE_FILE"
           grep -Fq 'createSvgTreeLayout' "$TREE_FILE"
           grep -Fq 'stroke="url(#branchGradient)"' "$TREE_FILE"
@@ -133,7 +142,7 @@ jobs:
 
           for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
-              echo 'Shajara Expo restarted with five-generation focused SVG renderer.'
+              echo 'Shajara Expo restarted with lineage-order search and five-generation SVG renderer.'
               tail -n 30 "$LOG_PATH" || true
               exit 0
             fi
