@@ -150,16 +150,6 @@ export default function PersonDetailsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Title icon="document-text" text="بيانات القراءة" />
-          <Detail label="رمز المشجرة" value={person.source_code ?? 'غير محدد'} />
-          <Detail label="حالة الاعتماد" value={approval} />
-          <Detail label="حالة القراءة" value={statusLabel(person.status)} />
-          <Detail label="الموضع في الصورة" value={person.source_locator ?? 'غير محدد'} />
-          <Detail label="المصدر" value={person.source_reference ?? 'غير محدد'} />
-          <Detail label="ملاحظات" value={person.supervisor_note ?? person.summary ?? 'لا توجد ملاحظات.'} />
-        </View>
-
-        <View style={styles.card}>
           <Title icon="git-network" text="سلسلة النسب النصية" />
           <Text style={styles.path}>{data.path_text}</Text>
         </View>
@@ -177,11 +167,9 @@ function Title({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: str
   return <View style={styles.titleRow}><Ionicons name={icon} size={22} color={colors.gold} /><Text style={styles.title}>{text}</Text></View>;
 }
 function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
-function Detail({ label, value }: { label: string; value: string }) { return <View style={styles.detail}><Text style={styles.detailLabel}>{label}</Text><Text selectable style={styles.detailValue}>{value}</Text></View>; }
 function SmallButton({ icon, text, onPress, primary = false }: { icon: keyof typeof Ionicons.glyphMap; text: string; onPress: () => void; primary?: boolean }) {
   return <Pressable onPress={onPress} style={[styles.small, primary && styles.smallPrimary]}><Ionicons name={icon} size={18} color={primary ? colors.white : colors.primary} /><Text style={[styles.smallText, primary && styles.smallTextPrimary]}>{text}</Text></Pressable>;
 }
-function statusLabel(status: string) { return status === 'readable' ? 'مقروء بوضوح' : status === 'unclear' ? 'غير محسوم' : 'يحتاج مراجعة'; }
 
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.background, flex: 1 },
@@ -207,9 +195,6 @@ const styles = StyleSheet.create({
   smallTextPrimary: { color: colors.white },
   reject: { alignItems: 'center', flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginTop: 9, minHeight: 43 },
   rejectText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
-  detail: { borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
-  detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' },
-  detailValue: { color: colors.text, fontSize: 15, lineHeight: 24, marginTop: 4, textAlign: 'right' },
   path: { color: colors.text, fontSize: 15, lineHeight: 27, textAlign: 'right' },
   blocked: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 },
   blockedTitle: { color: colors.danger, fontSize: 23, fontWeight: '900', marginTop: 13, textAlign: 'center' },
