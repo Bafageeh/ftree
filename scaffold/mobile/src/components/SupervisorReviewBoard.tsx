@@ -6,6 +6,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { getChartEdges, getChartReadings, getPendingPeople } from '../lib/api';
 import { colors, radius, shadow } from '../theme';
 import type { ChartEdge, ChartReading, Person } from '../types';
+import { SupervisorEdgeReviewCard } from './SupervisorEdgeReviewCard';
 
 type Mode = 'readings' | 'edges' | 'people';
 type Item = ChartReading | ChartEdge | Person;
@@ -37,6 +38,12 @@ export function SupervisorReviewBoard() {
     return map;
   }, [people, readings]);
 
+  const onEdgeReviewed = useCallback((updated: ChartEdge) => {
+    setEdges((current) => updated.approval_status === 'pending_supervisor'
+      ? current.map((edge) => edge.id === updated.id ? updated : edge)
+      : current.filter((edge) => edge.id !== updated.id));
+  }, []);
+
   const data: Item[] = mode === 'readings' ? readings : mode === 'edges' ? edges : people;
 
   return (
@@ -55,9 +62,9 @@ export function SupervisorReviewBoard() {
             </View>
           </View>
           <View style={styles.counts}>
-            <Count value={readings.length} label="قراءة" />
-            <Count value={edges.length} label="علاقة" />
-            <Count value={people.length} label="اسم" />
+            <Count value={readings.length} label="قراءة مرمزة" />
+            <Count value={edges.length} label="علاقة معلقة" />
+            <Count value={people.length} label="اسم بانتظارك" />
           </View>
           <View style={styles.tabs}>
             <Tab active={mode === 'readings'} label={`القراءات ${readings.length}`} onPress={() => setMode('readings')} />
@@ -69,7 +76,7 @@ export function SupervisorReviewBoard() {
       renderItem={({ item }) => mode === 'readings'
         ? <ReadingCard item={item as ChartReading} />
         : mode === 'edges'
-          ? <EdgeCard item={item as ChartEdge} names={names} />
+          ? <SupervisorEdgeReviewCard item={item as ChartEdge} names={names} onReviewed={onEdgeReviewed} />
           : <PersonReviewCard item={item as Person} />}
       ListEmptyComponent={<Text style={styles.empty}>لا توجد عناصر في هذا القسم.</Text>}
     />
@@ -93,20 +100,8 @@ function ReadingCard({ item }: { item: ChartReading }) {
       <Text style={styles.code}>{item.source_key}</Text>
       {!!item.source_locator && <Text style={styles.meta}>{item.source_locator}</Text>}
       {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
+      {!!item.person_id && <Text style={styles.openHint}>اضغط لفتح قرار المشرف على الاسم</Text>}
     </Pressable>
-  );
-}
-
-function EdgeCard({ item, names }: { item: ChartEdge; names: Map<string, string> }) {
-  const from = names.get(item.from_source_key) ?? item.from_source_key;
-  const to = names.get(item.to_source_key) ?? item.to_source_key;
-  return (
-    <View style={[styles.card, styles.edge]}>
-      <View style={styles.row}><Badge text={statusLabel(item.reading_status)} /><Text style={styles.confidence}>{item.confidence}%</Text></View>
-      <View style={styles.flow}><Text style={styles.flowName}>{from}</Text><Ionicons name="arrow-forward" size={22} color={colors.gold} /><Text style={styles.flowName}>{to}</Text></View>
-      {!!item.source_locator && <Text style={styles.meta}>{item.source_locator}</Text>}
-      {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
-    </View>
   );
 }
 
@@ -117,6 +112,7 @@ function PersonReviewCard({ item }: { item: Person }) {
       <Text style={styles.name}>{item.full_name}</Text>
       {!!item.source_code && <Text style={styles.code}>{item.source_code}</Text>}
       {!!item.source_locator && <Text style={styles.meta}>{item.source_locator}</Text>}
+      <Text style={styles.openHint}>اضغط للاعتماد أو التعديل أو الرفض</Text>
     </Pressable>
   );
 }
@@ -139,14 +135,13 @@ const styles = StyleSheet.create({
   counts: { flexDirection: 'row-reverse', gap: 8, marginBottom: 10 },
   count: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flex: 1, padding: 10 },
   countValue: { color: colors.primary, fontSize: 20, fontWeight: '900' },
-  small: { color: colors.muted, fontSize: 11 },
+  small: { color: colors.muted, fontSize: 10, textAlign: 'center' },
   tabs: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 4, marginBottom: 14, padding: 4 },
   tab: { alignItems: 'center', borderRadius: radius.md, flex: 1, minHeight: 42, justifyContent: 'center' },
   activeTab: { backgroundColor: colors.primary },
   tabText: { color: colors.primary, fontSize: 10, fontWeight: '900' },
   activeTabText: { color: colors.white },
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 10, padding: 16, ...shadow },
-  edge: { borderColor: colors.gold },
   row: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between' },
   badge: { backgroundColor: colors.goldSoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6 },
   badgeText: { color: '#8A661E', fontSize: 11, fontWeight: '900' },
@@ -155,7 +150,6 @@ const styles = StyleSheet.create({
   code: { color: colors.primary, fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'right' },
   meta: { color: colors.muted, fontSize: 12, lineHeight: 20, marginTop: 7, textAlign: 'right' },
   notes: { color: colors.text, fontSize: 12, lineHeight: 21, marginTop: 6, textAlign: 'right' },
-  flow: { alignItems: 'center', flexDirection: 'row-reverse', gap: 7, marginTop: 14 },
-  flowName: { color: colors.primary, flex: 1, fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  openHint: { color: colors.gold, fontSize: 11, fontWeight: '800', marginTop: 10, textAlign: 'right' },
   empty: { color: colors.muted, padding: 30, textAlign: 'center' },
 });
