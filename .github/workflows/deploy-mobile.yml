@@ -100,6 +100,7 @@ jobs:
           grep -Fq 'searchPeopleByLineage' "$TREE_FILE"
           grep -Fq 'formatLineageSearchPath' "$TREE_FILE"
           grep -Fq 'الاسم ثم الأب ثم الجد' "$TREE_FILE"
+          grep -Fq 'جميع فروع أبنائه وأحفاده' "$TREE_FILE"
           grep -Fq 'collectGenerationWindow' "$WINDOW_FILE"
           grep -Fq 'defaultExpandedPath' "$WINDOW_FILE"
           grep -Fq 'maxCompoundWords = 5' "$SEARCH_FILE"
@@ -142,7 +143,7 @@ jobs:
 
           for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
-              echo 'Shajara Expo restarted with lineage-order search and five-generation SVG renderer.'
+              echo 'Shajara Expo restarted with lineage search and five-generation descendant expansion.'
               tail -n 30 "$LOG_PATH" || true
               exit 0
             fi
