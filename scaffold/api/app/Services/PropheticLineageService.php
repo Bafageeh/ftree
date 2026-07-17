@@ -9,6 +9,29 @@ class PropheticLineageService
 {
     public const PROPHET_SOURCE_CODE = 'CORE-001';
 
+    /** @var array<int, Person> */
+    private array $peopleById = [];
+
+    /** @var array<int, array<string, mixed>> */
+    private array $traceCache = [];
+
+    /**
+     * Warm the in-request person map so listing hundreds of lineages does not
+     * issue a separate database query for every parent step.
+     *
+     * @param Collection<int, Person> $people
+     */
+    public function warm(Collection $people): self
+    {
+        foreach ($people as $person) {
+            $this->peopleById[$person->id] = $person;
+        }
+
+        $this->traceCache = [];
+
+        return $this;
+    }
+
     /**
      * Trace a person's lineage upward and return it ordered from the Prophet
      * or the highest known ancestor down to the requested person.
@@ -29,6 +52,11 @@ class PropheticLineageService
      */
     public function trace(Person $person): array
     {
+        if (isset($this->traceCache[$person->id])) {
+            return $this->traceCache[$person->id];
+        }
+
+        $this->peopleById[$person->id] = $person;
         $pathFromPerson = collect();
         $current = $person;
         $visited = [];
@@ -52,9 +80,7 @@ class PropheticLineageService
                 break;
             }
 
-            $parent = $current->relationLoaded('parent')
-                ? $current->parent
-                : $current->parent()->first();
+            $parent = $this->parentOf($current);
 
             if (! $parent || $parent->approval_status === 'rejected') {
                 $brokenParentReference = true;
@@ -82,7 +108,7 @@ class PropheticLineageService
             default => 'disconnected_from_prophet',
         };
 
-        return [
+        return $this->traceCache[$person->id] = [
             'connected_to_prophet' => $connected,
             'fully_confirmed' => $fullyConfirmed,
             'pending_review_count' => $pendingReviewCount,
@@ -103,6 +129,8 @@ class PropheticLineageService
      */
     public function connectedIds(Collection $people): Collection
     {
+        $this->warm($people);
+
         return $people
             ->filter(fn (Person $person) => $this->trace($person)['connected_to_prophet'])
             ->pluck('id')
@@ -115,9 +143,28 @@ class PropheticLineageService
      */
     public function disconnectedIds(Collection $people): Collection
     {
+        $this->warm($people);
+
         return $people
             ->reject(fn (Person $person) => $this->trace($person)['connected_to_prophet'])
             ->pluck('id')
             ->values();
+    }
+
+    private function parentOf(Person $person): ?Person
+    {
+        if ($person->relationLoaded('parent')) {
+            $parent = $person->parent;
+        } elseif (isset($this->peopleById[$person->lineage_parent_id])) {
+            $parent = $this->peopleById[$person->lineage_parent_id];
+        } else {
+            $parent = $person->parent()->first();
+        }
+
+        if ($parent) {
+            $this->peopleById[$parent->id] = $parent;
+        }
+
+        return $parent;
     }
 }
