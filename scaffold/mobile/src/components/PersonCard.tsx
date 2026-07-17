@@ -23,11 +23,12 @@ export function PersonCard({ person, onPress, compact = false }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={person.full_name}
       onPress={onPress}
       style={({ pressed }) => [styles.card, compact && styles.compact, pressed && styles.pressed]}
     >
-      <View style={[styles.codeBox, pending && styles.codeBoxPending]}>
-        <Text numberOfLines={2} style={styles.codeText}>{person.source_code ?? `#${person.id}`}</Text>
+      <View style={styles.avatar}>
+        <Ionicons name="person" size={21} color={colors.white} />
       </View>
 
       <View style={styles.content}>
@@ -74,17 +75,14 @@ const styles = StyleSheet.create({
   },
   compact: { paddingVertical: 12 },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  codeBox: {
+  avatar: {
     alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    borderRadius: 23,
+    height: 46,
     justifyContent: 'center',
-    minHeight: 46,
-    paddingHorizontal: 7,
-    width: 78,
+    width: 46,
   },
-  codeBoxPending: { backgroundColor: colors.goldSoft },
-  codeText: { color: colors.primary, fontSize: 10, fontWeight: '900', textAlign: 'center' },
   content: { alignItems: 'flex-end', flex: 1 },
   name: { color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'right' },
   honorific: { color: colors.muted, fontSize: 13, marginTop: 2, textAlign: 'right' },
