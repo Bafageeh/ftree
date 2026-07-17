@@ -18,6 +18,7 @@ class LineageController extends Controller
     public function show(Request $request, Person $person, PropheticLineageService $lineage): View
     {
         abort_if($person->approval_status === 'rejected', 404);
+        abort_unless($lineage->trace($person)['connected_to_prophet'], 404);
 
         return $this->render($request, $person, $lineage);
     }
@@ -34,13 +35,27 @@ class LineageController extends Controller
 
         $lineage->warm($allPeople);
 
-        $allRecords = $allPeople->map(fn (Person $person) => [
-            'person' => $person,
-            'trace' => $lineage->trace($person),
-        ]);
+        $allRecords = $allPeople
+            ->map(fn (Person $person) => [
+                'person' => $person,
+                'trace' => $lineage->trace($person),
+            ])
+            ->filter(fn (array $record) => $record['trace']['connected_to_prophet'])
+            ->values();
+
+        if ($selected) {
+            $selectedTrace = $lineage->trace($selected);
+            abort_unless($selectedTrace['connected_to_prophet'], 404);
+        } else {
+            $selectedTrace = null;
+        }
 
         $search = trim((string) $request->string('search'));
         $status = (string) $request->string('lineage_status', 'all');
+
+        if (! in_array($status, ['all', 'connected', 'confirmed', 'pending'], true)) {
+            $status = 'all';
+        }
 
         $records = $allRecords
             ->when($search !== '', function ($records) use ($search) {
@@ -56,29 +71,23 @@ class LineageController extends Controller
                     return mb_stripos($haystack, $search) !== false;
                 });
             })
-            ->when($status === 'connected', fn ($records) => $records->filter(fn (array $record) => $record['trace']['connected_to_prophet']))
             ->when($status === 'confirmed', fn ($records) => $records->filter(fn (array $record) => $record['trace']['fully_confirmed']))
-            ->when($status === 'pending', fn ($records) => $records->filter(fn (array $record) => $record['trace']['connected_to_prophet'] && ! $record['trace']['fully_confirmed']))
-            ->when($status === 'disconnected', fn ($records) => $records->reject(fn (array $record) => $record['trace']['connected_to_prophet']))
+            ->when($status === 'pending', fn ($records) => $records->reject(fn (array $record) => $record['trace']['fully_confirmed']))
             ->values();
 
-        $connected = $allRecords->filter(fn (array $record) => $record['trace']['connected_to_prophet']);
         $confirmed = $allRecords->filter(fn (array $record) => $record['trace']['fully_confirmed']);
-        $pending = $connected->reject(fn (array $record) => $record['trace']['fully_confirmed']);
-        $disconnected = $allRecords->reject(fn (array $record) => $record['trace']['connected_to_prophet']);
+        $pending = $allRecords->reject(fn (array $record) => $record['trace']['fully_confirmed']);
 
         return view('lineage.index', [
             'records' => $records,
             'selected' => $selected,
-            'selectedTrace' => $selected ? $lineage->trace($selected) : null,
+            'selectedTrace' => $selectedTrace,
             'search' => $search,
             'status' => $status,
             'counts' => [
                 'total' => $allRecords->count(),
-                'connected' => $connected->count(),
                 'confirmed' => $confirmed->count(),
                 'pending' => $pending->count(),
-                'disconnected' => $disconnected->count(),
             ],
         ]);
     }
