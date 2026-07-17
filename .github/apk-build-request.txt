@@ -1,4 +1,5 @@
-Build requested: 2026-07-17T16:35:00+03:00
-Version: 1.0.4 (5)
-Reason: Adopt the official green and gold Shajara icon across Android, splash, and web assets
+Build requested: 2026-07-18T00:43:00+03:00
+Version: 1.0.5 (6)
+Reason: Include the latest genealogy tree, profile details, photo upload, and tree-first navigation
 Artifact: Shajara-Android-Release-APK
+Build method: GitHub Actions Gradle release; no EAS build credits
