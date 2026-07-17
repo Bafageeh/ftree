@@ -26,21 +26,13 @@ export function SupervisorEdgeReviewCard({
   const to = names.get(item.to_source_key) ?? item.to_source_key;
   const fromPerson = peopleBySource.get(item.from_source_key);
   const toPerson = peopleBySource.get(item.to_source_key);
-  const isLineage = item.relation_type === 'lineage';
 
-  const grandfather = isLineage && fromPerson?.lineage_parent_id
+  const grandfather = fromPerson?.lineage_parent_id
     ? peopleById.get(fromPerson.lineage_parent_id)
     : undefined;
-  const grandchildren = isLineage && toPerson
+  const grandchildren = toPerson
     ? childrenByParentId.get(toPerson.id) ?? []
     : [];
-
-  const upperLabel = isLineage
-    ? 'الأب'
-    : item.relation_type === 'branch_membership'
-      ? 'الاسم'
-      : 'المؤسس';
-  const lowerLabel = isLineage ? 'الابن' : 'الفرع';
 
   const save = async (decision: SupervisorDecision, reverse = false) => {
     if (saving) return;
@@ -53,11 +45,11 @@ export function SupervisorEdgeReviewCard({
       });
       onReviewed(updated);
       Alert.alert(
-        decision === 'approve' ? 'تم اعتماد العلاقة' : decision === 'reject' ? 'تم رفض العلاقة' : 'بقيت للمراجعة',
+        decision === 'approve' ? 'تم اعتماد صلة النسب' : decision === 'reject' ? 'تم رفض العلاقة' : 'بقيت للمراجعة',
         decision === 'approve'
-          ? reverse ? 'تم عكس الأب والابن ثم اعتماد العلاقة.' : 'تم اعتماد الأب والابن كما ظهرا.'
+          ? reverse ? 'تم عكس الأب والابن ثم اعتماد صلة النسب.' : 'تم اعتماد الأب والابن كما ظهرا.'
           : decision === 'reject'
-            ? 'لن تظهر العلاقة ضمن العلاقات المعتمدة.'
+            ? 'لن تظهر هذه الصلة ضمن شجرة النسب المعتمدة.'
             : 'بقيت العلاقة في قائمة المراجعة.',
       );
     } catch (error) {
@@ -70,13 +62,10 @@ export function SupervisorEdgeReviewCard({
   const confirmApprove = (reverse = false) => {
     const shownParent = reverse ? to : from;
     const shownChild = reverse ? from : to;
-    const message = isLineage
-      ? `هل تعتمد أن «${shownParent}» هو الأب، و«${shownChild}» هو الابن؟`
-      : `هل تعتمد العلاقة من «${shownParent}» إلى «${shownChild}»؟`;
 
     Alert.alert(
-      reverse ? 'عكس الأب والابن واعتماد' : 'اعتماد العلاقة',
-      message,
+      reverse ? 'عكس الأب والابن واعتماد' : 'اعتماد صلة النسب',
+      `هل تعتمد أن «${shownParent}» هو الأب، و«${shownChild}» هو الابن؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'اعتماد', onPress: () => save('approve', reverse) },
@@ -86,7 +75,7 @@ export function SupervisorEdgeReviewCard({
 
   const confirmReject = () => Alert.alert(
     'رفض العلاقة',
-    'هل ترفض هذا السهم؟ سيبقى محفوظًا في السجل.',
+    'هل ترفض هذا السهم؟ سيبقى محفوظًا في سجل المراجعة.',
     [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'رفض', style: 'destructive', onPress: () => save('reject') },
@@ -108,9 +97,9 @@ export function SupervisorEdgeReviewCard({
           </>
         )}
 
-        <RelationPerson label={upperLabel} name={from} code={displayCode(fromPerson, item.from_source_key)} />
+        <RelationPerson label="الأب" name={from} code={displayCode(fromPerson, item.from_source_key)} />
         <RelationArrow />
-        <RelationPerson label={lowerLabel} name={to} code={displayCode(toPerson, item.to_source_key)} />
+        <RelationPerson label="الابن" name={to} code={displayCode(toPerson, item.to_source_key)} />
 
         {!!grandchildren.length && (
           <>
@@ -128,19 +117,19 @@ export function SupervisorEdgeReviewCard({
         )}
       </View>
 
-      <Text style={styles.type}>{relationLabel(item.relation_type)}</Text>
+      <Text style={styles.type}>صلة نسب مباشرة داخل الشجرة: الأب ثم الابن</Text>
       {!!item.source_locator && <Text style={styles.meta}>{item.source_locator}</Text>}
       {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
 
       <Pressable disabled={saving} onPress={() => confirmApprove(false)} style={({ pressed }) => [styles.approve, pressed && styles.pressed, saving && styles.disabled]}>
         {saving ? <ActivityIndicator color={colors.white} /> : <Ionicons name="checkmark-circle" size={20} color={colors.white} />}
-        <Text style={styles.approveText}>{isLineage ? 'اعتماد الأب والابن كما يظهران' : 'اعتماد العلاقة كما هي'}</Text>
+        <Text style={styles.approveText}>اعتماد الأب والابن كما يظهران</Text>
       </Pressable>
 
       <View style={styles.actions}>
         <Pressable disabled={saving} onPress={() => confirmApprove(true)} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
           <Ionicons name="swap-vertical" size={18} color={colors.primary} />
-          <Text style={styles.secondaryText}>{isLineage ? 'عكس الأب والابن واعتماد' : 'عكس الاتجاه واعتماد'}</Text>
+          <Text style={styles.secondaryText}>عكس الأب والابن واعتماد</Text>
         </Pressable>
         <Pressable disabled={saving} onPress={() => save('pending')} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
           <Ionicons name="time" size={18} color={colors.primary} />
@@ -178,12 +167,6 @@ function statusLabel(status: string) {
   if (status === 'readable') return 'مقروء بوضوح';
   if (status === 'unclear') return 'غير محسوم';
   return 'يحتاج مراجعة';
-}
-
-function relationLabel(type: string) {
-  if (type === 'lineage') return 'صلة نسب مباشرة: الأب ثم الابن';
-  if (type === 'branch_membership') return 'انتماء إلى فرع';
-  return 'مؤسس أو متصل بفرع';
 }
 
 const styles = StyleSheet.create({
