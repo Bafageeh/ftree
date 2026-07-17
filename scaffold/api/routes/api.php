@@ -12,7 +12,6 @@ Route::prefix('v1')->group(function () {
     Route::get('/health', HealthController::class);
     Route::get('/stats', [PersonController::class, 'stats']);
     Route::get('/people', [PersonController::class, 'index']);
-    Route::get('/lineage-gaps', [PersonController::class, 'lineageGaps']);
     Route::get('/people/{person}', [PersonController::class, 'show']);
     Route::get('/people/{person}/lineage', [PersonController::class, 'lineage']);
     Route::post('/people/{person}/review', [SupervisorReviewController::class, 'reviewPerson'])->middleware('throttle:60,1');
