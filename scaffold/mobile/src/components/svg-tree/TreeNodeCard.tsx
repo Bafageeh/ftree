@@ -56,7 +56,7 @@ export function TreeNodeCard({
         pressed && styles.nodePressed,
       ]}
     >
-      <View style={[styles.header, { gap: 9 * zoom }]}>
+      <View style={[styles.header, { gap: 9 * zoom }]}> 
         <View style={[
           styles.personIcon,
           {
@@ -86,9 +86,6 @@ export function TreeNodeCard({
           >
             {person.full_name}
           </Text>
-          <Text style={[styles.code, { fontSize: 9 * zoom, marginTop: 2 * zoom }, prophet && styles.prophetMeta]}>
-            {person.source_code ?? `#${person.id}`}
-          </Text>
         </View>
 
         <View style={[
@@ -109,7 +106,7 @@ export function TreeNodeCard({
         </View>
       </View>
 
-      <View style={[styles.footer, { gap: 8 * zoom, marginTop: 9 * zoom }]}>
+      <View style={[styles.footer, { gap: 8 * zoom, marginTop: 9 * zoom }]}> 
         <View style={[
           styles.statusPill,
           {
@@ -164,7 +161,6 @@ const styles = StyleSheet.create({
   prophetLabel: { color: '#E8C977', fontWeight: '900', textAlign: 'right' },
   name: { color: colors.primary, fontWeight: '900', textAlign: 'right' },
   prophetName: { color: colors.white },
-  code: { color: '#8A661E', fontWeight: '800', textAlign: 'right' },
   prophetMeta: { color: '#DDE8E4' },
   expandButton: { alignItems: 'center', backgroundColor: colors.primarySoft, justifyContent: 'center' },
   expandButtonOpen: { backgroundColor: colors.primary },
