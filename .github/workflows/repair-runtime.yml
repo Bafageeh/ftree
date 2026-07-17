@@ -8,7 +8,6 @@ on:
     paths:
       - .github/workflows/repair-runtime.yml
       - scaffold/api/database/migrations/**
-      - scaffold/api/database/seeders/**
       - scaffold/api/app/Models/**
       - scaffold/api/app/Services/**
       - scaffold/api/app/Http/Controllers/Api/**
@@ -24,7 +23,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Promote readings, verify API, restart Expo
+    name: Verify imported genealogy and restart Expo
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: production
@@ -67,58 +66,50 @@ jobs:
           test -s "$API_PATH/artisan"
           test -s "$MOBILE_PATH/package.json"
 
-          for _ in $(seq 1 60); do
-            if ! pgrep -f '[b]ootstrap-stack.sh' >/dev/null 2>&1; then
-              break
-            fi
-            sleep 10
-          done
-
           cd "$API_PATH"
           php artisan optimize:clear
           php artisan migrate --force
-          php artisan db:seed --class=DatabaseSeeder --force
-          php artisan db:seed --class=ProvisionalPersonSeeder --force
+          php artisan optimize:clear
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
 
           PEOPLE_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::count();" 2>/dev/null | tr -cd '0-9')
-          READING_COUNT=$(php artisan tinker --execute="echo App\\Models\\ChartReading::count();" 2>/dev/null | tr -cd '0-9')
           PENDING_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','pending_supervisor')->count();" 2>/dev/null | tr -cd '0-9')
           CONFIRMED_COUNT=$(php artisan tinker --execute="echo App\\Models\\Person::where('approval_status','supervisor_confirmed')->count();" 2>/dev/null | tr -cd '0-9')
-          PROMOTED_COUNT=$(php artisan tinker --execute="echo App\\Models\\ChartReading::where('is_promoted',true)->count();" 2>/dev/null | tr -cd '0-9')
 
           echo "People: ${PEOPLE_COUNT:-unknown}"
           echo "Confirmed: ${CONFIRMED_COUNT:-unknown}"
           echo "Pending supervisor: ${PENDING_COUNT:-unknown}"
-          echo "Chart readings: ${READING_COUNT:-unknown}"
-          echo "Promoted readings: ${PROMOTED_COUNT:-unknown}"
 
-          test -n "${PEOPLE_COUNT:-}" && [ "$PEOPLE_COUNT" -ge 220 ]
-          test -n "${CONFIRMED_COUNT:-}" && [ "$CONFIRMED_COUNT" -ge 24 ]
-          test -n "${PENDING_COUNT:-}" && [ "$PENDING_COUNT" -ge 196 ]
-          test -n "${READING_COUNT:-}" && [ "$READING_COUNT" -ge 196 ]
-          test -n "${PROMOTED_COUNT:-}" && [ "$PROMOTED_COUNT" -ge 196 ]
+          test -n "${PEOPLE_COUNT:-}" && [ "$PEOPLE_COUNT" -ge 57 ]
+          test -n "${CONFIRMED_COUNT:-}" && [ "$CONFIRMED_COUNT" -ge 35 ]
+          test -n "${PENDING_COUNT:-}" && [ "$PENDING_COUNT" -ge 22 ]
 
           STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
             https://shajara.pm.sa/api/v1/stats)
           printf '%s\n' "$STATS_JSON"
           php -r '
             $data = json_decode($argv[1], true);
-            if (!is_array($data) || ($data["total"] ?? 0) < 220 || ($data["pending_supervisor"] ?? 0) < 196) {
-                fwrite(STDERR, "People stats API did not expose all coded nodes.\n");
+            if (!is_array($data) || ($data["total"] ?? 0) < 57 || ($data["pending_supervisor"] ?? 0) < 22) {
+                fwrite(STDERR, "Imported genealogy totals are missing from the API.\n");
                 exit(1);
             }
           ' "$STATS_JSON"
 
           PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 \
-            'https://shajara.pm.sa/api/v1/people?per_page=250')
+            'https://shajara.pm.sa/api/v1/people?per_page=250&lineage_status=connected')
           php -r '
             $data = json_decode($argv[1], true);
-            if (!is_array($data) || count($data["data"] ?? []) < 220) {
-                fwrite(STDERR, "People API did not return all coded nodes.\n");
-                exit(1);
+            $people = [];
+            foreach (($data["data"] ?? []) as $person) {
+                $people[$person["source_code"] ?? ""] = true;
+            }
+            foreach (["ALI-FAQIH-HASAN-TURABI", "JAMAL-HASAN-HARUN", "S04-04-U003"] as $code) {
+                if (!isset($people[$code])) {
+                    fwrite(STDERR, "Connected people API is missing {$code}.\n");
+                    exit(1);
+                }
             }
           ' "$PEOPLE_JSON"
 
@@ -126,14 +117,13 @@ jobs:
           fuser -k 8083/tcp >/dev/null 2>&1 || true
           cd "$MOBILE_PATH"
           printf 'EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1\n' > .env
-          chown pmsa:pmsa .env
           : > "$LOG_PATH"
           nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' \
             npx expo start --host lan --port 8083 --clear > "$LOG_PATH" 2>&1 < /dev/null &
 
           for _ in $(seq 1 45); do
             if curl -fsS http://127.0.0.1:8083/status | grep -qi running; then
-              echo 'Expo Metro is ready on port 8083.'
+              echo 'Imported genealogy is published and Expo Metro is ready on port 8083.'
               exit 0
             fi
             sleep 2
