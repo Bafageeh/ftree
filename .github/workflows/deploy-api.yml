@@ -93,24 +93,35 @@ jobs:
           chmod -R ug+rwX "$API_PATH/storage" "$API_PATH/bootstrap/cache"
 
           HEALTH_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/health)
-          GAPS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
+          STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/stats)
+          PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250')
           LINEAGE_HTML=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/lineage)
+          GAPS_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
 
           php -r '
             $health = json_decode($argv[1], true);
-            $gaps = json_decode($argv[2], true);
+            $stats = json_decode($argv[2], true);
+            $people = json_decode($argv[3], true);
             if (!is_array($health)) {
                 fwrite(STDERR, "Health endpoint returned invalid JSON.\n");
                 exit(1);
             }
-            if (!is_array($gaps) || !array_key_exists("people_count", $gaps) || !isset($gaps["definition"])) {
-                fwrite(STDERR, "Prophetic lineage gaps endpoint is incomplete.\n");
+            if (!is_array($stats) || ($stats["total"] ?? -1) !== ($stats["connected_to_prophet"] ?? -2)) {
+                fwrite(STDERR, "Published totals include a lineage not connected to the Prophet.\n");
                 exit(1);
             }
-            echo $gaps["definition"]."\n";
-          ' "$HEALTH_JSON" "$GAPS_JSON"
+            if (($stats["disconnected_from_prophet"] ?? -1) !== 0) {
+                fwrite(STDERR, "Disconnected lineage count must be zero.\n");
+                exit(1);
+            }
+            if (!is_array($people) || !isset($people["data"]) || count($people["data"]) > ($stats["total"] ?? 0)) {
+                fwrite(STDERR, "People endpoint is inconsistent with connected lineage totals.\n");
+                exit(1);
+            }
+          ' "$HEALTH_JSON" "$STATS_JSON" "$PEOPLE_JSON"
 
-          printf '%s' "$LINEAGE_HTML" | grep -q 'صلة النسب بالنبي محمد'
-          printf '%s' "$LINEAGE_HTML" | grep -q 'منقطعة النسب'
-          echo 'Shajara Laravel lineage page deployed without running Expo.'
+          test "$GAPS_STATUS" = "404"
+          printf '%s' "$LINEAGE_HTML" | grep -q 'شجرة النسب المتصلة بسيد البشر محمد'
+          printf '%s' "$LINEAGE_HTML" | grep -q 'أُلغي من الشجرة العامة كل اسم أو فرع لا يصل ترابطه'
+          echo 'Shajara published only lineages connected to the Prophet without running Expo.'
           REMOTE
