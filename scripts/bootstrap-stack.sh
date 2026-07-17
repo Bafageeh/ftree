@@ -241,8 +241,17 @@ fi
 if [[ -x /scripts/restartsrv_httpd ]]; then
   /scripts/restartsrv_httpd
 fi
+if [[ -x /usr/local/cpanel/bin/uapi ]]; then
+  /usr/local/cpanel/bin/uapi --output=jsonpretty --user="$CPANEL_USER" \
+    SSL remove_autossl_excluded_domains domains=shajara.pm.sa || true
+  /usr/local/cpanel/bin/uapi --output=jsonpretty --user="$CPANEL_USER" \
+    SSL start_autossl_check || true
+fi
 if [[ -x /usr/local/cpanel/bin/autossl_check ]]; then
   /usr/local/cpanel/bin/autossl_check --user="$CPANEL_USER" || true
+fi
+if [[ -x /scripts/restartsrv_httpd ]]; then
+  /scripts/restartsrv_httpd
 fi
 
 cd "$API_PATH"
