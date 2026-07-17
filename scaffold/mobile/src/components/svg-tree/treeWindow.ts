@@ -5,12 +5,6 @@ export type GenerationWindow = {
   depthById: Map<number, number>;
 };
 
-export type SelectedFamilyWindow = GenerationWindow & {
-  root: Person;
-  expandedIds: Set<number>;
-  ancestorExpandedIds: Set<number>;
-};
-
 export function collectGenerationWindow(
   root: Person,
   childrenByParent: Map<number, Person[]>,
@@ -19,8 +13,20 @@ export function collectGenerationWindow(
 ): GenerationWindow {
   const ids = new Set<number>();
   const depthById = new Map<number, number>();
-  const visited = new Set<number>();
+  const byId = peopleById(childrenByParent);
 
+  // أظهر الأب والأجداد حتى الجد الخامس في بطاقة الشجرة.
+  let ancestor: Person | undefined = root;
+  for (let index = 0; index < 5; index += 1) {
+    if (!ancestor.lineage_parent_id) break;
+    const parent = byId.get(ancestor.lineage_parent_id);
+    if (!parent || !allowedIds.has(parent.id)) break;
+    ids.add(parent.id);
+    depthById.set(parent.id, 0);
+    ancestor = parent;
+  }
+
+  const visited = new Set<number>();
   const visit = (person: Person, depth: number) => {
     if (depth >= maxGenerations || visited.has(person.id) || !allowedIds.has(person.id)) return;
     visited.add(person.id);
@@ -34,79 +40,6 @@ export function collectGenerationWindow(
   return { ids, depthById };
 }
 
-/**
- * يبني بطاقة شجرة للشخص المختار فقط:
- * - مسار الأب حتى الجد الخامس من دون إظهار الإخوة أو الأعمام.
- * - جميع أبناء الشخص وذريته حتى خمسة أجيال إلى الأسفل.
- *
- * بطاقة المسار إلى النبي مستقلة عن هذه النافذة ولا تستخدم هذه الدالة.
- */
-export function collectSelectedFamilyWindow(
-  selected: Person,
-  byId: Map<number, Person>,
-  childrenByParent: Map<number, Person[]>,
-  allowedIds: Set<number>,
-  maxAncestors = 5,
-  maxDescendantGenerations = 5,
-): SelectedFamilyWindow {
-  const ancestorChain: Person[] = [selected];
-  const visitedAncestors = new Set<number>([selected.id]);
-  let current: Person | undefined = selected;
-
-  for (let generation = 0; generation < maxAncestors; generation += 1) {
-    if (!current.lineage_parent_id) break;
-    const parent = byId.get(current.lineage_parent_id);
-    if (!parent || visitedAncestors.has(parent.id) || !allowedIds.has(parent.id)) break;
-    ancestorChain.unshift(parent);
-    visitedAncestors.add(parent.id);
-    current = parent;
-  }
-
-  const ids = new Set<number>();
-  const depthById = new Map<number, number>();
-  const expandedIds = new Set<number>();
-  const ancestorExpandedIds = new Set<number>();
-
-  ancestorChain.forEach((person, depth) => {
-    ids.add(person.id);
-    depthById.set(person.id, depth);
-    if (depth < ancestorChain.length - 1) {
-      expandedIds.add(person.id);
-      ancestorExpandedIds.add(person.id);
-    }
-  });
-
-  const selectedDepth = ancestorChain.length - 1;
-  const visitedDescendants = new Set<number>();
-
-  const visitDescendants = (person: Person, descendantDepth: number) => {
-    if (visitedDescendants.has(person.id) || descendantDepth >= maxDescendantGenerations) return;
-    visitedDescendants.add(person.id);
-
-    const children = (childrenByParent.get(person.id) ?? [])
-      .filter((child) => allowedIds.has(child.id));
-
-    if (!children.length || descendantDepth === maxDescendantGenerations - 1) return;
-    expandedIds.add(person.id);
-
-    children.forEach((child) => {
-      ids.add(child.id);
-      depthById.set(child.id, selectedDepth + descendantDepth + 1);
-      visitDescendants(child, descendantDepth + 1);
-    });
-  };
-
-  visitDescendants(selected, 0);
-
-  return {
-    root: ancestorChain[0],
-    ids,
-    depthById,
-    expandedIds,
-    ancestorExpandedIds,
-  };
-}
-
 export function collectExpandableIds(
   root: Person,
   childrenByParent: Map<number, Person[]>,
@@ -114,8 +47,19 @@ export function collectExpandableIds(
   maxGenerations: number,
 ): Set<number> {
   const expanded = new Set<number>();
-  const visited = new Set<number>();
+  const byId = peopleById(childrenByParent);
 
+  // افتح مسار الأجداد كي يصل الرسم إلى الشخص المختار.
+  let ancestor: Person | undefined = root;
+  for (let index = 0; index < 5; index += 1) {
+    if (!ancestor.lineage_parent_id) break;
+    const parent = byId.get(ancestor.lineage_parent_id);
+    if (!parent || !allowedIds.has(parent.id)) break;
+    expanded.add(parent.id);
+    ancestor = parent;
+  }
+
+  const visited = new Set<number>();
   const visit = (person: Person, depth: number) => {
     if (depth >= maxGenerations - 1 || visited.has(person.id) || !allowedIds.has(person.id)) return;
     visited.add(person.id);
@@ -157,12 +101,16 @@ export function pathToRoot(person: Person, byId: Map<number, Person>): Person[] 
   const path: Person[] = [];
   const visited = new Set<number>();
   let current: Person | undefined = person;
-
   while (current && !visited.has(current.id)) {
     path.unshift(current);
     visited.add(current.id);
     current = current.lineage_parent_id ? byId.get(current.lineage_parent_id) : undefined;
   }
-
   return path;
+}
+
+function peopleById(childrenByParent: Map<number, Person[]>): Map<number, Person> {
+  const byId = new Map<number, Person>();
+  childrenByParent.forEach((children) => children.forEach((person) => byId.set(person.id, person)));
+  return byId;
 }
