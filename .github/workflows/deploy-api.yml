@@ -81,6 +81,16 @@ jobs:
           test -n "$COMPOSER_BIN"
 
           "$COMPOSER_BIN" install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+          if grep -R --line-number --fixed-string 'use RuntimeException;' database/migrations; then
+            echo 'Invalid global RuntimeException import found in a migration.' >&2
+            exit 1
+          fi
+
+          while IFS= read -r migration; do
+            php -l "$migration" >/dev/null
+          done < <(find database/migrations -maxdepth 1 -type f -name '*.php' -print | sort)
+
           php artisan optimize:clear
           php artisan migrate --force
           php artisan optimize:clear
