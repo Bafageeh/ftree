@@ -3,6 +3,7 @@ export type ApprovalStatus = 'supervisor_confirmed' | 'pending_supervisor' | 're
 export type ReviewRequestType = 'correction' | 'addition' | 'source';
 export type GenealogyNodeType = 'person' | 'family' | 'branch' | 'branch_label' | 'unknown';
 export type ChartEdgeType = 'lineage' | 'branch_founder' | 'branch_membership';
+export type Gender = 'male' | 'female';
 
 export type Person = {
   id: number;
@@ -11,6 +12,7 @@ export type Person = {
   chart_reading_id?: number | null;
   node_type?: GenealogyNodeType;
   honorific?: string | null;
+  gender?: Gender | null;
   lineage_parent_id?: number | null;
   status: ReadingStatus;
   approval_status?: ApprovalStatus;
@@ -21,6 +23,8 @@ export type Person = {
   chart_color?: string | null;
   generation: number;
   summary?: string | null;
+  general_details?: string | null;
+  profile_photo_url?: string | null;
   source_reference?: string | null;
   source_locator?: string | null;
   chart_order?: number | null;
