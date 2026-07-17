@@ -18,7 +18,13 @@ type Props = {
   statusFilter?: TreeStatusFilter;
 };
 
+type GenerationWindow = {
+  ids: Set<number>;
+  depthById: Map<number, number>;
+};
+
 const ROOT_CODE = 'CORE-001';
+const MAX_VISIBLE_GENERATIONS = 5;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.15;
@@ -31,6 +37,7 @@ export function ZoomableSvgGenealogyTree({
   const { width: screenWidth } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [focusedRootId, setFocusedRootId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const [zoom, setZoom] = useState(1);
   const initializedRootId = useRef<number | null>(null);
@@ -58,7 +65,7 @@ export function ZoomableSvgGenealogyTree({
     };
   }, [people]);
 
-  const visibleIds = useMemo(() => {
+  const connectedVisibleIds = useMemo(() => {
     const visible = new Set<number>();
     if (!graph.root) return visible;
 
@@ -83,31 +90,56 @@ export function ZoomableSvgGenealogyTree({
   useEffect(() => {
     if (!graph.root || initializedRootId.current === graph.root.id) return;
     initializedRootId.current = graph.root.id;
-    setExpandedIds(defaultExpandedPath(graph.root, graph.childrenByParent));
-  }, [graph]);
-
-  const layout = useMemo(() => {
-    if (!graph.root) return { width: Math.max(screenWidth - 36, 320), height: 220, nodes: [], connectors: [] };
-    return createSvgTreeLayout(
+    setFocusedRootId(graph.root.id);
+    setExpandedIds(defaultExpandedPath(
       graph.root,
       graph.childrenByParent,
-      visibleIds,
+      connectedVisibleIds,
+      MAX_VISIBLE_GENERATIONS,
+    ));
+  }, [connectedVisibleIds, graph]);
+
+  const focusedRoot = useMemo(() => {
+    if (!graph.root) return null;
+    if (!focusedRootId) return graph.root;
+    return graph.byId.get(focusedRootId) ?? graph.root;
+  }, [focusedRootId, graph]);
+
+  const generationWindow = useMemo<GenerationWindow>(() => {
+    if (!focusedRoot) return { ids: new Set(), depthById: new Map() };
+    return collectGenerationWindow(
+      focusedRoot,
+      graph.childrenByParent,
+      connectedVisibleIds,
+      MAX_VISIBLE_GENERATIONS,
+    );
+  }, [connectedVisibleIds, focusedRoot, graph.childrenByParent]);
+
+  const layout = useMemo(() => {
+    if (!focusedRoot) return { width: Math.max(screenWidth - 36, 320), height: 220, nodes: [], connectors: [] };
+    return createSvgTreeLayout(
+      focusedRoot,
+      graph.childrenByParent,
+      generationWindow.ids,
       expandedIds,
       Math.max(screenWidth - 36, 320),
     );
-  }, [expandedIds, graph, screenWidth, visibleIds]);
+  }, [expandedIds, focusedRoot, generationWindow.ids, graph.childrenByParent, screenWidth]);
 
   const matches = useMemo(() => {
     const normalized = query.trim();
     if (!normalized) return [];
     return graph.people
-      .filter((person) => visibleIds.has(person.id))
+      .filter((person) => connectedVisibleIds.has(person.id))
       .filter((person) => `${person.full_name} ${person.source_code ?? ''}`.includes(normalized))
       .slice(0, 12);
-  }, [graph.people, query, visibleIds]);
+  }, [connectedVisibleIds, graph.people, query]);
 
   const selected = selectedId ? graph.byId.get(selectedId) ?? null : null;
   const selectedPath = selected ? pathToRoot(selected, graph.byId) : [];
+  const focusedParent = focusedRoot?.lineage_parent_id
+    ? graph.byId.get(focusedRoot.lineage_parent_id) ?? null
+    : null;
   const canvasWidth = Math.max(1, layout.width * zoom);
   const canvasHeight = Math.max(1, layout.height * zoom);
 
@@ -116,10 +148,29 @@ export function ZoomableSvgGenealogyTree({
     setZoom(Math.round(bounded * 100) / 100);
   };
 
-  const toggleNode = (person: Person) => {
-    const hasChildren = (graph.childrenByParent.get(person.id) ?? []).some((child) => visibleIds.has(child.id));
+  const focusOn = (person: Person) => {
+    setFocusedRootId(person.id);
     setSelectedId(person.id);
-    if (!hasChildren) return;
+    setExpandedIds(defaultExpandedPath(
+      person,
+      graph.childrenByParent,
+      connectedVisibleIds,
+      MAX_VISIBLE_GENERATIONS,
+    ));
+  };
+
+  const handleNodePress = (person: Person) => {
+    const children = (graph.childrenByParent.get(person.id) ?? [])
+      .filter((child) => connectedVisibleIds.has(child.id));
+    setSelectedId(person.id);
+    if (!children.length) return;
+
+    // Opening any descendant makes it the new visible root. This removes all
+    // older ancestors from the canvas and keeps memory/rendering bounded.
+    if (person.id !== focusedRoot?.id) {
+      focusOn(person);
+      return;
+    }
 
     setExpandedIds((current) => {
       const next = new Set(current);
@@ -129,16 +180,30 @@ export function ZoomableSvgGenealogyTree({
   };
 
   const revealPerson = (person: Person) => {
-    const path = pathToRoot(person, graph.byId);
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      path.slice(0, -1).forEach((ancestor) => next.add(ancestor.id));
-      return next;
-    });
-    setSelectedId(person.id);
+    focusOn(person);
   };
 
-  if (!graph.root) {
+  const showParent = () => {
+    if (!focusedParent) return;
+    focusOn(focusedParent);
+  };
+
+  const showProphetRoot = () => {
+    if (!graph.root) return;
+    focusOn(graph.root);
+  };
+
+  const expandFiveGenerations = () => {
+    if (!focusedRoot) return;
+    setExpandedIds(collectExpandableIds(
+      focusedRoot,
+      graph.childrenByParent,
+      connectedVisibleIds,
+      MAX_VISIBLE_GENERATIONS,
+    ));
+  };
+
+  if (!graph.root || !focusedRoot) {
     return (
       <View style={styles.emptyBox}>
         <Ionicons name="warning-outline" size={40} color={colors.gold} />
@@ -153,8 +218,29 @@ export function ZoomableSvgGenealogyTree({
       <View style={styles.notice}>
         <Ionicons name="git-network" size={24} color={colors.gold} />
         <View style={styles.flex}>
-          <Text style={styles.noticeTitle}>مخطط SVG تفاعلي</Text>
-          <Text style={styles.noticeText}>اضغط على الأب لاستعراض أبنائه. كبّر وصغّر الشجرة كاملة من 50% إلى 200% أو استخدم الملاءمة التلقائية.</Text>
+          <Text style={styles.noticeTitle}>نافذة شجرة خفيفة: 5 أجيال</Text>
+          <Text style={styles.noticeText}>يُعرض خمسة أجيال فقط. عند فتح ابن يصبح هو بداية العرض وتختفي الأجيال الأقدم لتقليل استهلاك الذاكرة.</Text>
+        </View>
+      </View>
+
+      <View style={styles.focusBar}>
+        <View style={styles.focusIdentity}>
+          <Text style={styles.focusLabel}>بداية العرض الحالية</Text>
+          <Text numberOfLines={1} style={styles.focusName}>{focusedRoot.full_name}</Text>
+        </View>
+        <View style={styles.focusActions}>
+          {!!focusedParent && (
+            <Pressable onPress={showParent} style={({ pressed }) => [styles.focusButton, pressed && styles.pressed]}>
+              <Ionicons name="arrow-up" size={17} color={colors.primary} />
+              <Text style={styles.focusButtonText}>الأب</Text>
+            </Pressable>
+          )}
+          {focusedRoot.source_code !== ROOT_CODE && (
+            <Pressable onPress={showProphetRoot} style={({ pressed }) => [styles.focusButton, pressed && styles.pressed]}>
+              <Ionicons name="home" size={17} color={colors.primary} />
+              <Text style={styles.focusButtonText}>الأصل</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -166,7 +252,7 @@ export function ZoomableSvgGenealogyTree({
         onZoomOut={() => setSafeZoom(zoom - ZOOM_STEP)}
         onReset={() => setSafeZoom(1)}
         onFit={() => setSafeZoom(Math.min(1, Math.max(screenWidth - 54, 280) / layout.width))}
-        onExpandAll={() => setExpandedIds(new Set(graph.childrenByParent.keys()))}
+        onExpandAll={expandFiveGenerations}
         onCollapseAll={() => { setExpandedIds(new Set()); setSelectedId(null); }}
       />
 
@@ -249,8 +335,11 @@ export function ZoomableSvgGenealogyTree({
 
             {layout.nodes.map((node) => {
               const person = node.person;
-              const children = (graph.childrenByParent.get(person.id) ?? []).filter((child) => visibleIds.has(child.id));
-              const expanded = children.length > 0 && expandedIds.has(person.id);
+              const allChildren = (graph.childrenByParent.get(person.id) ?? [])
+                .filter((child) => connectedVisibleIds.has(child.id));
+              const depth = generationWindow.depthById.get(person.id) ?? 0;
+              const canRenderChildren = depth < MAX_VISIBLE_GENERATIONS - 1;
+              const expanded = canRenderChildren && allChildren.length > 0 && expandedIds.has(person.id);
               const branchLabel = person.chart_branch ? branchLabels[person.chart_branch] : null;
 
               return (
@@ -260,9 +349,9 @@ export function ZoomableSvgGenealogyTree({
                   zoom={zoom}
                   selected={selectedId === person.id}
                   expanded={expanded}
-                  childCount={children.length}
+                  childCount={allChildren.length}
                   branchLabel={branchLabel}
-                  onPress={() => toggleNode(person)}
+                  onPress={() => handleNodePress(person)}
                   onLongPress={() => router.push(`/person/${person.id}`)}
                 />
               );
@@ -273,24 +362,77 @@ export function ZoomableSvgGenealogyTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>يعرض زر «ملاءمة» أكبر قدر ممكن من الشجرة داخل الشاشة، وتبقى إمكانية التحريك الأفقي متاحة للفروع الواسعة.</Text>
+        <Text style={styles.tipText}>عند الوصول إلى الجيل الخامس اضغط على الاسم ذي الأبناء؛ سيصبح هو بداية نافذة جديدة من خمسة أجيال.</Text>
       </View>
     </View>
   );
 }
 
-function defaultExpandedPath(root: Person, childrenByParent: Map<number, Person[]>): Set<number> {
+function collectGenerationWindow(
+  root: Person,
+  childrenByParent: Map<number, Person[]>,
+  allowedIds: Set<number>,
+  maxGenerations: number,
+): GenerationWindow {
+  const ids = new Set<number>();
+  const depthById = new Map<number, number>();
+  const visited = new Set<number>();
+
+  const visit = (person: Person, depth: number) => {
+    if (depth >= maxGenerations || visited.has(person.id) || !allowedIds.has(person.id)) return;
+    visited.add(person.id);
+    ids.add(person.id);
+    depthById.set(person.id, depth);
+
+    if (depth === maxGenerations - 1) return;
+    (childrenByParent.get(person.id) ?? []).forEach((child) => visit(child, depth + 1));
+  };
+
+  visit(root, 0);
+  return { ids, depthById };
+}
+
+function collectExpandableIds(
+  root: Person,
+  childrenByParent: Map<number, Person[]>,
+  allowedIds: Set<number>,
+  maxGenerations: number,
+): Set<number> {
+  const expanded = new Set<number>();
+  const visited = new Set<number>();
+
+  const visit = (person: Person, depth: number) => {
+    if (depth >= maxGenerations - 1 || visited.has(person.id) || !allowedIds.has(person.id)) return;
+    visited.add(person.id);
+    const children = (childrenByParent.get(person.id) ?? []).filter((child) => allowedIds.has(child.id));
+    if (!children.length) return;
+    expanded.add(person.id);
+    children.forEach((child) => visit(child, depth + 1));
+  };
+
+  visit(root, 0);
+  return expanded;
+}
+
+function defaultExpandedPath(
+  root: Person,
+  childrenByParent: Map<number, Person[]>,
+  allowedIds: Set<number>,
+  maxGenerations: number,
+): Set<number> {
   const expanded = new Set<number>();
   const visited = new Set<number>();
   let current: Person | undefined = root;
+  let depth = 0;
 
-  while (current && !visited.has(current.id)) {
+  while (current && depth < maxGenerations - 1 && !visited.has(current.id)) {
     visited.add(current.id);
-    const children = childrenByParent.get(current.id) ?? [];
+    const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));
     if (!children.length) break;
     expanded.add(current.id);
     if (children.length !== 1) break;
     current = children[0];
+    depth += 1;
   }
 
   return expanded;
@@ -326,6 +468,14 @@ const styles = StyleSheet.create({
   notice: { alignItems: 'flex-start', backgroundColor: colors.primarySoft, borderColor: colors.gold, borderRadius: radius.lg, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, marginBottom: 12, padding: 14 },
   noticeTitle: { color: colors.primary, fontSize: 17, fontWeight: '900', textAlign: 'right' },
   noticeText: { color: colors.text, fontSize: 11, lineHeight: 19, marginTop: 4, textAlign: 'right' },
+  focusBar: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, marginBottom: 10, padding: 10, ...shadow },
+  focusIdentity: { flex: 1 },
+  focusLabel: { color: colors.muted, fontSize: 9, textAlign: 'right' },
+  focusName: { color: colors.primary, fontSize: 14, fontWeight: '900', marginTop: 2, textAlign: 'right' },
+  focusActions: { flexDirection: 'row-reverse', gap: 6 },
+  focusButton: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.pill, flexDirection: 'row-reverse', gap: 4, minHeight: 36, paddingHorizontal: 10 },
+  focusButtonText: { color: colors.primary, fontSize: 10, fontWeight: '900' },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   search: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 9, marginBottom: 12, minHeight: 58, paddingHorizontal: 15, ...shadow },
   searchInput: { color: colors.text, flex: 1, fontSize: 15 },
   results: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 12, paddingHorizontal: 12 },
