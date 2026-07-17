@@ -1,4 +1,4 @@
-import { CompletePropheticTree } from './CompletePropheticTree';
+import { ZoomableSvgGenealogyTree } from './ZoomableSvgGenealogyTree';
 import type { TreeStatusFilter } from './ModernGenealogyTree';
 import type { ChartEdge, Person } from '../types';
 
@@ -13,7 +13,7 @@ const MIRBAT_CODE = 'CORE-016';
 const ALAWI_MIRBAT_CODE = 'MIRBAT-ALAWI-001';
 
 export function GenealogyTree(props: Props) {
-  return <CompletePropheticTree {...props} people={withVerifiedMirbatChildren(props.people)} />;
+  return <ZoomableSvgGenealogyTree {...props} people={withVerifiedMirbatChildren(props.people)} />;
 }
 
 function withVerifiedMirbatChildren(source: Person[]): Person[] {
