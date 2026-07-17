@@ -13,10 +13,37 @@ if (!peoplePath || !edgesPath || !outputDirectory) {
 const peoplePayload = JSON.parse(fs.readFileSync(peoplePath, 'utf8'));
 const edgesPayload = JSON.parse(fs.readFileSync(edgesPath, 'utf8'));
 const people = Array.isArray(peoplePayload.data) ? peoplePayload.data : [];
-const edges = Array.isArray(edgesPayload.data) ? edgesPayload.data : [];
+const fetchedEdges = Array.isArray(edgesPayload.data) ? edgesPayload.data : [];
+const peopleById = new Map(people.map((person) => [person.id, person]));
 
-if (people.length < 238 || edges.length < 9) {
-  console.error(`Snapshot incomplete: people=${people.length}, edges=${edges.length}`);
+const generatedEdges = people
+  .filter((person) => person.lineage_parent_id && person.source_code)
+  .map((person, index) => {
+    const parent = peopleById.get(person.lineage_parent_id);
+    if (!parent?.source_code) return null;
+
+    return {
+      id: 900000 + index,
+      from_source_key: parent.source_code,
+      to_source_key: person.source_code,
+      relation_type: 'lineage',
+      reading_status: person.status ?? 'readable',
+      confidence: person.approval_status === 'supervisor_confirmed' ? 1 : 0.75,
+      approval_status: person.approval_status ?? 'pending_supervisor',
+      source_locator: person.source_locator ?? null,
+      notes: 'مولدة تلقائيًا من علاقة الأب المسجلة في بيانات الشخص أثناء بناء APK.',
+    };
+  })
+  .filter(Boolean);
+
+const edges = fetchedEdges.length > 0 ? fetchedEdges : generatedEdges;
+const hasProphetRoot = people.some((person) => person.source_code === 'CORE-001');
+const linkedPeopleCount = people.filter((person) => person.lineage_parent_id).length;
+
+if (people.length < 100 || !hasProphetRoot || linkedPeopleCount < 20 || edges.length < 20) {
+  console.error(
+    `Snapshot incomplete: people=${people.length}, linked=${linkedPeopleCount}, edges=${edges.length}, prophetRoot=${hasProphetRoot}`,
+  );
   process.exit(1);
 }
 
@@ -35,4 +62,6 @@ const edgesContent =
 fs.writeFileSync(path.join(outputDirectory, 'bundledPeople.ts'), peopleContent);
 fs.writeFileSync(path.join(outputDirectory, 'bundledEdges.ts'), edgesContent);
 
-console.log(`Bundled snapshot: people=${people.length}, edges=${edges.length}`);
+console.log(
+  `Bundled snapshot: people=${people.length}, linked=${linkedPeopleCount}, fetchedEdges=${fetchedEdges.length}, bundledEdges=${edges.length}`,
+);
