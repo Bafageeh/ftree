@@ -26,6 +26,7 @@ export function SupervisorEdgeReviewCard({
   const to = names.get(item.to_source_key) ?? item.to_source_key;
   const fromPerson = peopleBySource.get(item.from_source_key);
   const toPerson = peopleBySource.get(item.to_source_key);
+  const shownNotes = normalizeLegacyNote(item.notes);
 
   const grandfather = fromPerson?.lineage_parent_id
     ? peopleById.get(fromPerson.lineage_parent_id)
@@ -119,7 +120,7 @@ export function SupervisorEdgeReviewCard({
 
       <Text style={styles.type}>صلة نسب مباشرة داخل الشجرة: الأب ثم الابن</Text>
       {!!item.source_locator && <Text style={styles.meta}>{item.source_locator}</Text>}
-      {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
+      {!!shownNotes && <Text style={styles.notes}>{shownNotes}</Text>}
 
       <Pressable disabled={saving} onPress={() => confirmApprove(false)} style={({ pressed }) => [styles.approve, pressed && styles.pressed, saving && styles.disabled]}>
         {saving ? <ActivityIndicator color={colors.white} /> : <Ionicons name="checkmark-circle" size={20} color={colors.white} />}
@@ -161,6 +162,14 @@ function RelationArrow() {
 
 function displayCode(person?: Person, fallback?: string) {
   return person?.source_code ?? fallback ?? `#${person?.id ?? ''}`;
+}
+
+function normalizeLegacyNote(note?: string | null) {
+  return note
+    ?.replace(/مؤسس ثم/g, 'أب ثم')
+    .replace(/مؤسس أو متصل بفرع/g, 'صلة نسب مباشرة')
+    .replace(/فرعاً/g, 'ابناً')
+    .replace(/فرعًا/g, 'ابنًا');
 }
 
 function statusLabel(status: string) {
