@@ -87,12 +87,14 @@ jobs:
           php artisan route:cache
           php artisan view:cache
           php artisan route:list --path=api/v1
+          php artisan route:list --name=lineage
 
           chown -R pmsa:pmsa "$API_PATH"
           chmod -R ug+rwX "$API_PATH/storage" "$API_PATH/bootstrap/cache"
 
           HEALTH_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/health)
           GAPS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
+          LINEAGE_HTML=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/lineage)
 
           php -r '
             $health = json_decode($argv[1], true);
@@ -105,7 +107,10 @@ jobs:
                 fwrite(STDERR, "Prophetic lineage gaps endpoint is incomplete.\n");
                 exit(1);
             }
-            echo "Shajara API deployed without running Expo.\n";
             echo $gaps["definition"]."\n";
           ' "$HEALTH_JSON" "$GAPS_JSON"
+
+          printf '%s' "$LINEAGE_HTML" | grep -q 'صلة النسب بالنبي محمد'
+          printf '%s' "$LINEAGE_HTML" | grep -q 'منقطعة النسب'
+          echo 'Shajara Laravel lineage page deployed without running Expo.'
           REMOTE
