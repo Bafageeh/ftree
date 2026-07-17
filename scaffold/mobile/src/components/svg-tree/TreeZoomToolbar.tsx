@@ -31,11 +31,11 @@ export function TreeZoomToolbar({
       <View style={styles.actionsRow}>
         <Pressable onPress={onExpandAll} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
           <Ionicons name="expand" size={18} color={colors.primary} />
-          <Text style={styles.actionText}>فتح الجميع</Text>
+          <Text style={styles.actionText}>فتح 5 أجيال</Text>
         </Pressable>
         <Pressable onPress={onCollapseAll} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
           <Ionicons name="contract" size={18} color={colors.primary} />
-          <Text style={styles.actionText}>إغلاق الجميع</Text>
+          <Text style={styles.actionText}>إغلاق الفروع</Text>
         </Pressable>
       </View>
 
