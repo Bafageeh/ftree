@@ -90,9 +90,10 @@ if [[ ! -s "$MOBILE_PATH/package.json" ]]; then
   CI=1 npx create-expo-app@latest "$MOBILE_PATH" --template default@sdk-57 --yes
 fi
 
-install -d "$MOBILE_PATH/app" "$MOBILE_PATH/src"
+install -d "$MOBILE_PATH/app" "$MOBILE_PATH/src" "$MOBILE_PATH/scripts" "$MOBILE_PATH/assets"
 rsync -a --delete "$SCAFFOLD_PATH/mobile/app/" "$MOBILE_PATH/app/"
 rsync -a --delete "$SCAFFOLD_PATH/mobile/src/" "$MOBILE_PATH/src/"
+rsync -a --delete "$SCAFFOLD_PATH/mobile/scripts/" "$MOBILE_PATH/scripts/"
 cp "$SCAFFOLD_PATH/mobile/app.json" "$MOBILE_PATH/app.json"
 cp "$SCAFFOLD_PATH/mobile/.env.example" "$MOBILE_PATH/.env.example"
 printf 'EXPO_PUBLIC_API_URL=%s\n' "$PUBLIC_API_URL" > "$MOBILE_PATH/.env"
@@ -187,6 +188,12 @@ npx expo install \
   react-native-web \
   @expo/metro-runtime
 npx expo install --fix
+npm install --no-save --no-audit --no-fund sharp
+node scripts/generate-shajara-icon.js assets
+test -s assets/icon.png || fail "Official app icon was not generated."
+test -s assets/adaptive-icon.png || fail "Adaptive app icon was not generated."
+test -s assets/splash-icon.png || fail "Splash icon was not generated."
+test -s assets/favicon.png || fail "Web favicon was not generated."
 node -e "console.log(require.resolve('react-native-svg/package.json'))"
 npx tsc --noEmit
 
