@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PersonResource;
 use App\Models\ChartEdge;
+use App\Models\ChartReading;
 use App\Models\Person;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SupervisorReviewController extends Controller
 {
@@ -81,6 +83,28 @@ class SupervisorReviewController extends Controller
                 ];
             }
 
+            if ($decision === 'approve' && $chartEdge->relation_type === 'lineage') {
+                $parent = $this->personForSourceKey($chartEdge->from_source_key);
+                $child = $this->personForSourceKey($chartEdge->to_source_key);
+
+                if (! $parent || ! $child) {
+                    throw ValidationException::withMessages([
+                        'relation' => 'تعذر العثور على سجل الأب أو الابن. راجع رمزي العقدتين قبل الاعتماد.',
+                    ]);
+                }
+
+                if ($parent->is($child) || $this->createsCycle($parent, $child)) {
+                    throw ValidationException::withMessages([
+                        'relation' => 'لا يمكن اعتماد هذه العلاقة لأنها ستنشئ دورة غير صحيحة في شجرة النسب.',
+                    ]);
+                }
+
+                $child->forceFill([
+                    'lineage_parent_id' => $parent->id,
+                    'generation' => max(1, ((int) $parent->generation) + 1),
+                ])->save();
+            }
+
             $chartEdge->forceFill([
                 'reading_status' => $validated['reading_status'] ?? $chartEdge->reading_status,
                 'approval_status' => match ($decision) {
@@ -95,5 +119,38 @@ class SupervisorReviewController extends Controller
         });
 
         return response()->json(['data' => $chartEdge->fresh()]);
+    }
+
+    private function personForSourceKey(string $sourceKey): ?Person
+    {
+        $person = Person::query()->where('source_code', $sourceKey)->first();
+        if ($person) {
+            return $person;
+        }
+
+        return ChartReading::query()
+            ->where('source_key', $sourceKey)
+            ->with('person')
+            ->first()
+            ?->person;
+    }
+
+    private function createsCycle(Person $parent, Person $child): bool
+    {
+        $current = $parent;
+        $visited = [];
+
+        while ($current && ! isset($visited[$current->id])) {
+            if ($current->id === $child->id) {
+                return true;
+            }
+
+            $visited[$current->id] = true;
+            $current = $current->lineage_parent_id
+                ? Person::query()->find($current->lineage_parent_id)
+                : null;
+        }
+
+        return false;
     }
 }
