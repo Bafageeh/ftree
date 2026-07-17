@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - .github/apk-build-request.txt
+      - .github/workflows/build-android-apk.yml
+      - scripts/bundle-genealogy-snapshot.js
 
 permissions:
   contents: read
@@ -52,8 +54,6 @@ jobs:
           set -euo pipefail
           mkdir -p shajara-mobile/src/generated
 
-          # The current shajara.pm.sa certificate is self-signed. This bypass is
-          # restricted to the CI snapshot download; the application still uses HTTPS.
           ready=0
           for attempt in $(seq 1 36); do
             echo "Snapshot attempt $attempt/36"
