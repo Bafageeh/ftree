@@ -10,11 +10,13 @@ class PropheticLineageService
     public const PROPHET_SOURCE_CODE = 'CORE-001';
 
     /**
-     * Trace a person's lineage upward and return it ordered from the highest
-     * known ancestor down to the requested person.
+     * Trace a person's lineage upward and return it ordered from the Prophet
+     * or the highest known ancestor down to the requested person.
      *
      * @return array{
      *     connected_to_prophet: bool,
+     *     fully_confirmed: bool,
+     *     pending_review_count: int,
      *     status: string,
      *     path: Collection<int, Person>,
      *     path_text: string,
@@ -67,9 +69,14 @@ class PropheticLineageService
         $prophet = $path->first(fn (Person $node) => $node->source_code === self::PROPHET_SOURCE_CODE);
         $connected = $prophet !== null && $path->first()?->id === $prophet->id;
         $highestKnownAncestor = $path->first();
+        $pendingReviewCount = $path
+            ->reject(fn (Person $node) => $node->approval_status === 'supervisor_confirmed')
+            ->count();
+        $fullyConfirmed = $connected && $pendingReviewCount === 0;
 
         $status = match (true) {
-            $connected => 'connected_to_prophet',
+            $fullyConfirmed => 'connected_to_prophet_confirmed',
+            $connected => 'connected_to_prophet_pending_review',
             $cycleDetected => 'cycle_detected',
             $brokenParentReference => 'broken_parent_reference',
             default => 'disconnected_from_prophet',
@@ -77,6 +84,8 @@ class PropheticLineageService
 
         return [
             'connected_to_prophet' => $connected,
+            'fully_confirmed' => $fullyConfirmed,
+            'pending_review_count' => $pendingReviewCount,
             'status' => $status,
             'path' => $path,
             'path_text' => $path->pluck('full_name')->implode(' ← '),
