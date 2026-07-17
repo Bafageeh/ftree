@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -42,12 +41,12 @@ return new class extends Migration
             $child = DB::table('people')->where('source_code', $childCode)->first();
 
             if (! $parent) {
-                throw new RuntimeException("Missing parent {$parentCode} ({$parentName}).");
+                throw new \RuntimeException("Missing parent {$parentCode} ({$parentName}).");
             }
 
             if (! $child) {
                 if ($childCode !== 'MIRBAT-ALAWI-001') {
-                    throw new RuntimeException("Missing child {$childCode} ({$fullName}).");
+                    throw new \RuntimeException("Missing child {$childCode} ({$fullName}).");
                 }
 
                 DB::table('people')->insert([
@@ -114,7 +113,7 @@ return new class extends Migration
 
         foreach ($requiredNames as $name) {
             if (! $actual->contains($name)) {
-                throw new RuntimeException("{$name} is not stored as a child of {$parentCode}.");
+                throw new \RuntimeException("{$name} is not stored as a child of {$parentCode}.");
             }
         }
     }
