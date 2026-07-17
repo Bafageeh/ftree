@@ -83,13 +83,13 @@ class SupervisorReviewController extends Controller
                 ];
             }
 
-            if ($decision === 'approve' && $chartEdge->relation_type === 'lineage') {
+            if ($decision === 'approve') {
                 $parent = $this->personForSourceKey($chartEdge->from_source_key);
                 $child = $this->personForSourceKey($chartEdge->to_source_key);
 
                 if (! $parent || ! $child) {
                     throw ValidationException::withMessages([
-                        'relation' => 'تعذر العثور على سجل الأب أو الابن. راجع رمزي العقدتين قبل الاعتماد.',
+                        'relation' => 'تعذر العثور على سجل الأب أو الابن. راجع رمزي الاسمين قبل الاعتماد.',
                     ]);
                 }
 
@@ -106,6 +106,7 @@ class SupervisorReviewController extends Controller
             }
 
             $chartEdge->forceFill([
+                'relation_type' => 'lineage',
                 'reading_status' => $validated['reading_status'] ?? $chartEdge->reading_status,
                 'approval_status' => match ($decision) {
                     'approve' => 'supervisor_confirmed',
