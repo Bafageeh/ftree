@@ -1,4 +1,4 @@
-Build requested: 2026-07-17T16:10:00+03:00
-Version: 1.0.3 (4)
-Reason: Retry after fixing invalid YAML by moving snapshot JavaScript to a standalone script
+Build requested: 2026-07-17T16:35:00+03:00
+Version: 1.0.4 (5)
+Reason: Adopt the official green and gold Shajara icon across Android, splash, and web assets
 Artifact: Shajara-Android-Release-APK
