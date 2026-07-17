@@ -1,4 +1,6 @@
 import type { Person } from '../types';
+import { bundledPeopleBatch4a } from './bundledPeopleBatch4a';
+import { bundledPeopleBatch4b } from './bundledPeopleBatch4b';
 
 const sourceReference = 'مشجرة أصول السادة آل باعلوي - النسخة المقسمة المكبرة';
 
@@ -24,6 +26,8 @@ export const bundledPeopleBatch3: Person[] = [
   review(2330, 'عقيل الفقيري بن عبد الله', 'ALI-ALAWI-AQIL-ALFAQIRI', 2326, 23, 'ali_alawi_faqih'),
   unclear(2331, 'S04-04-U002', 2326, 23, 'ali_alawi_faqih'),
   unclear(2332, 'S04-04-U003', 2327, 24, 'ali_alawi_faqih'),
+  ...bundledPeopleBatch4a,
+  ...bundledPeopleBatch4b,
 ];
 
 function review(
