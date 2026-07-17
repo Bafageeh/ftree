@@ -6,6 +6,7 @@ import { colors } from '../../src/theme';
 export default function TabsLayout() {
   return (
     <Tabs
+      initialRouteName="tree"
       screenOptions={{
         headerShadowVisible: false,
         headerStyle: { backgroundColor: colors.background },
@@ -27,8 +28,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'الرئيسية',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+          href: null,
         }}
       />
       <Tabs.Screen
