@@ -94,14 +94,14 @@ jobs:
 
           HEALTH_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/health)
           STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/stats)
-          PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250')
+          PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250&lineage_status=connected')
           LINEAGE_HTML=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/lineage)
           GAPS_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
 
           php -r '
             $health = json_decode($argv[1], true);
             $stats = json_decode($argv[2], true);
-            $people = json_decode($argv[3], true);
+            $peoplePayload = json_decode($argv[3], true);
             if (!is_array($health)) {
                 fwrite(STDERR, "Health endpoint returned invalid JSON.\n");
                 exit(1);
@@ -114,14 +114,39 @@ jobs:
                 fwrite(STDERR, "Disconnected lineage count must be zero.\n");
                 exit(1);
             }
-            if (!is_array($people) || !isset($people["data"]) || count($people["data"]) > ($stats["total"] ?? 0)) {
+            if (!is_array($peoplePayload) || !isset($peoplePayload["data"]) || count($peoplePayload["data"]) > ($stats["total"] ?? 0)) {
                 fwrite(STDERR, "People endpoint is inconsistent with connected lineage totals.\n");
                 exit(1);
+            }
+
+            $people = [];
+            foreach ($peoplePayload["data"] as $person) {
+                $people[$person["source_code"] ?? ""] = $person;
+            }
+
+            $required = [
+                "CORE-016" => ["name" => "محمد صاحب مرباط", "children" => ["CORE-017", "MIRBAT-ALAWI-001"]],
+                "CORE-018" => ["name" => "محمد الفقيه المقدم", "children" => ["CORE-019", "CORE-022", "CORE-023", "CORE-024"]],
+                "CORE-019" => ["name" => "علوي بن محمد الفقيه المقدم", "children" => ["CORE-020", "CORE-021"]],
+            ];
+
+            foreach ($required as $parentCode => $definition) {
+                if (!isset($people[$parentCode]) || ($people[$parentCode]["full_name"] ?? null) !== $definition["name"]) {
+                    fwrite(STDERR, "Missing or incorrectly named parent {$parentCode}.\n");
+                    exit(1);
+                }
+                $parentId = $people[$parentCode]["id"];
+                foreach ($definition["children"] as $childCode) {
+                    if (!isset($people[$childCode]) || ($people[$childCode]["lineage_parent_id"] ?? null) !== $parentId) {
+                        fwrite(STDERR, "{$childCode} is not stored as a child of {$parentCode}.\n");
+                        exit(1);
+                    }
+                }
             }
           ' "$HEALTH_JSON" "$STATS_JSON" "$PEOPLE_JSON"
 
           test "$GAPS_STATUS" = "404"
           printf '%s' "$LINEAGE_HTML" | grep -q 'شجرة النسب المتصلة بسيد البشر محمد'
           printf '%s' "$LINEAGE_HTML" | grep -q 'أُلغي من الشجرة العامة كل اسم أو فرع لا يصل ترابطه'
-          echo 'Shajara published only lineages connected to the Prophet without running Expo.'
+          echo 'Shajara API deployed with the verified branched children tree.'
           REMOTE
