@@ -14,7 +14,7 @@ export default function ReviewScreen() {
           <View style={styles.iconBox}><Ionicons name="git-compare" size={24} color={colors.danger} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.shortcutTitle}>منقطعة النسب</Text>
-            <Text style={styles.shortcutText}>عرض الاسم الذي تنقطع عنده الشجرة مع السلسلة المعروفة واقتراح الأب من المشجرة الأصلية والعلاقات المسجلة.</Text>
+            <Text style={styles.shortcutText}>عرض كل اسم بلا أب مع السلسلة المعروفة واقتراح الأب من أسهم المشجرة.</Text>
           </View>
           <Ionicons name="chevron-back" size={22} color={colors.primary} />
         </Pressable>
