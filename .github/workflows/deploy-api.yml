@@ -1,0 +1,111 @@
+name: Deploy Shajara API
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-api.yml
+      - scaffold/api/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shajara-api-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-api:
+    name: Deploy Laravel API only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Upload API files
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          rsync -az \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $SERVER_PORT" \
+            scaffold/api/ \
+            "root@$SERVER_HOST:$APP_PATH/shajara-api/"
+
+      - name: Apply and verify API update
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -p "$SERVER_PORT" \
+            "root@$SERVER_HOST" \
+            "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          API_PATH="$APP_PATH/shajara-api"
+          test -s "$API_PATH/artisan"
+          cd "$API_PATH"
+
+          COMPOSER_BIN="$(command -v composer || true)"
+          if [[ -z "$COMPOSER_BIN" && -x /opt/cpanel/composer/bin/composer ]]; then
+            COMPOSER_BIN=/opt/cpanel/composer/bin/composer
+          fi
+          test -n "$COMPOSER_BIN"
+
+          "$COMPOSER_BIN" install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+          php artisan optimize:clear
+          php artisan migrate --force
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+          php artisan route:list --path=api/v1
+
+          chown -R pmsa:pmsa "$API_PATH"
+          chmod -R ug+rwX "$API_PATH/storage" "$API_PATH/bootstrap/cache"
+
+          HEALTH_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/health)
+          GAPS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
+
+          php -r '
+            $health = json_decode($argv[1], true);
+            $gaps = json_decode($argv[2], true);
+            if (!is_array($health)) {
+                fwrite(STDERR, "Health endpoint returned invalid JSON.\n");
+                exit(1);
+            }
+            if (!is_array($gaps) || !array_key_exists("people_count", $gaps) || !isset($gaps["definition"])) {
+                fwrite(STDERR, "Prophetic lineage gaps endpoint is incomplete.\n");
+                exit(1);
+            }
+            echo "Shajara API deployed without running Expo.\n";
+            echo $gaps["definition"]."\n";
+          ' "$HEALTH_JSON" "$GAPS_JSON"
+          REMOTE
