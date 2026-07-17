@@ -110,7 +110,6 @@ export default function PersonDetailsScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.profile}>
           <Ionicons name={pending ? 'hourglass' : rejected ? 'close-circle' : 'person'} size={38} color={colors.primarySoft} />
-          <Text style={styles.code}>{person.source_code ?? `#${person.id}`}</Text>
           <Text style={styles.name}>{person.full_name}</Text>
           <Text style={styles.approval}>{approval}</Text>
         </View>
@@ -189,8 +188,7 @@ const styles = StyleSheet.create({
   loading: { alignItems: 'center', backgroundColor: colors.background, flex: 1, justifyContent: 'center' },
   content: { padding: 18, paddingBottom: 70 },
   profile: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.lg, padding: 24, ...shadow },
-  code: { color: '#E9C87E', fontSize: 12, fontWeight: '900', marginTop: 10 },
-  name: { color: colors.white, fontSize: 27, fontWeight: '900', marginTop: 6, textAlign: 'center' },
+  name: { color: colors.white, fontSize: 27, fontWeight: '900', marginTop: 8, textAlign: 'center' },
   approval: { backgroundColor: colors.goldSoft, borderRadius: radius.pill, color: '#805D17', fontSize: 12, fontWeight: '900', marginTop: 13, paddingHorizontal: 13, paddingVertical: 7 },
   warning: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginTop: 14, padding: 13 },
   warningText: { color: colors.text, flex: 1, fontSize: 12, lineHeight: 20, textAlign: 'right' },
