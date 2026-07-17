@@ -164,8 +164,6 @@ export function ZoomableSvgGenealogyTree({
       .filter((child) => connectedVisibleIds.has(child.id));
     setSelectedId(person.id);
 
-    // Any selected child becomes the only visible branch root. All siblings and
-    // the older parent branch disappear immediately, even when the child is a leaf.
     if (person.id !== focusedRoot?.id) {
       focusOn(person);
       return;
@@ -180,18 +178,12 @@ export function ZoomableSvgGenealogyTree({
     });
   };
 
-  const revealPerson = (person: Person) => {
-    focusOn(person);
-  };
-
   const showParent = () => {
-    if (!focusedParent) return;
-    focusOn(focusedParent);
+    if (focusedParent) focusOn(focusedParent);
   };
 
   const showProphetRoot = () => {
-    if (!graph.root) return;
-    focusOn(graph.root);
+    if (graph.root) focusOn(graph.root);
   };
 
   const expandFiveGenerations = () => {
@@ -216,14 +208,6 @@ export function ZoomableSvgGenealogyTree({
 
   return (
     <View>
-      <View style={styles.notice}>
-        <Ionicons name="git-network" size={24} color={colors.gold} />
-        <View style={styles.flex}>
-          <Text style={styles.noticeTitle}>نافذة شجرة خفيفة: 5 أجيال</Text>
-          <Text style={styles.noticeText}>يُعرض خمسة أجيال فقط. عند اختيار ابن يصبح هو الفرع الوحيد المعروض، وتختفي الأجيال الأقدم وإخوته لتقليل استهلاك الذاكرة.</Text>
-        </View>
-      </View>
-
       <View style={styles.focusBar}>
         <View style={styles.focusIdentity}>
           <Text style={styles.focusLabel}>بداية العرض الحالية</Text>
@@ -273,7 +257,7 @@ export function ZoomableSvgGenealogyTree({
       {!!query && (
         <View style={styles.results}>
           {matches.length ? matches.map((person) => (
-            <Pressable key={person.id} onPress={() => revealPerson(person)} style={styles.resultRow}>
+            <Pressable key={person.id} onPress={() => focusOn(person)} style={styles.resultRow}>
               <Ionicons name="locate-outline" size={18} color={colors.gold} />
               <View style={styles.flex}>
                 <Text style={styles.resultName}>{person.full_name}</Text>
@@ -466,9 +450,6 @@ function order(a: Person, b: Person) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  notice: { alignItems: 'flex-start', backgroundColor: colors.primarySoft, borderColor: colors.gold, borderRadius: radius.lg, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, marginBottom: 12, padding: 14 },
-  noticeTitle: { color: colors.primary, fontSize: 17, fontWeight: '900', textAlign: 'right' },
-  noticeText: { color: colors.text, fontSize: 11, lineHeight: 19, marginTop: 4, textAlign: 'right' },
   focusBar: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, marginBottom: 10, padding: 10, ...shadow },
   focusIdentity: { flex: 1 },
   focusLabel: { color: colors.muted, fontSize: 9, textAlign: 'right' },
