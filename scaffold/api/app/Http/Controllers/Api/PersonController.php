@@ -9,43 +9,38 @@ use App\Services\PropheticLineageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Collection;
 
 class PersonController extends Controller
 {
     public function index(Request $request, PropheticLineageService $lineage): AnonymousResourceCollection
     {
+        [$allPeople, $connectedIds] = $this->connectedPeople($lineage);
+
         $query = Person::query()
+            ->whereIn('id', $connectedIds)
             ->with('parent:id,full_name,honorific,source_code,approval_status,lineage_parent_id');
 
-        if ($request->filled('lineage_status')) {
-            $people = Person::query()
-                ->where('approval_status', '!=', 'rejected')
-                ->get();
-            $lineage->warm($people);
+        $lineageStatus = (string) $request->string('lineage_status', 'all');
+        if (in_array($lineageStatus, ['confirmed', 'connected_to_prophet_confirmed'], true)) {
+            $confirmedIds = $allPeople
+                ->filter(fn (Person $person) => $lineage->trace($person)['fully_confirmed'])
+                ->pluck('id');
+            $query->whereIn('id', $confirmedIds);
+        } elseif (in_array($lineageStatus, ['pending', 'connected_to_prophet_pending_review'], true)) {
+            $pendingIds = $allPeople
+                ->filter(function (Person $person) use ($lineage) {
+                    $trace = $lineage->trace($person);
 
-            $ids = match ((string) $request->string('lineage_status')) {
-                'connected', 'connected_to_prophet' => $lineage->connectedIds($people),
-                'disconnected', 'disconnected_from_prophet' => $lineage->disconnectedIds($people),
-                'confirmed', 'connected_to_prophet_confirmed' => $people
-                    ->filter(fn (Person $person) => $lineage->trace($person)['fully_confirmed'])
-                    ->pluck('id')
-                    ->values(),
-                'pending', 'connected_to_prophet_pending_review' => $people
-                    ->filter(function (Person $person) use ($lineage) {
-                        $trace = $lineage->trace($person);
-
-                        return $trace['connected_to_prophet'] && ! $trace['fully_confirmed'];
-                    })
-                    ->pluck('id')
-                    ->values(),
-                default => $people->pluck('id')->values(),
-            };
-
-            $query->whereIn('id', $ids);
+                    return $trace['connected_to_prophet'] && ! $trace['fully_confirmed'];
+                })
+                ->pluck('id');
+            $query->whereIn('id', $pendingIds);
+        } elseif (in_array($lineageStatus, ['disconnected', 'disconnected_from_prophet'], true)) {
+            $query->whereRaw('1 = 0');
         }
 
         $people = $query
-            ->when(! $request->filled('approval_status'), fn ($builder) => $builder->where('approval_status', '!=', 'rejected'))
             ->when($request->filled('search'), function ($builder) use ($request) {
                 $search = trim((string) $request->string('search'));
                 $builder->where(function ($nested) use ($search) {
@@ -70,123 +65,87 @@ class PersonController extends Controller
         return PersonResource::collection($people);
     }
 
-    public function show(Person $person): PersonResource
+    public function show(Person $person, PropheticLineageService $lineage): PersonResource
     {
-        return new PersonResource($person->load(['parent', 'children']));
+        abort_if($person->approval_status === 'rejected', 404);
+        abort_unless($lineage->trace($person)['connected_to_prophet'], 404);
+
+        $children = Person::query()
+            ->where('lineage_parent_id', $person->id)
+            ->where('approval_status', '!=', 'rejected')
+            ->get()
+            ->filter(fn (Person $child) => $lineage->trace($child)['connected_to_prophet'])
+            ->values();
+
+        $person->setRelation('children', $children);
+        $person->load('parent');
+
+        return new PersonResource($person);
     }
 
     public function lineage(Person $person, PropheticLineageService $lineage): JsonResponse
     {
+        abort_if($person->approval_status === 'rejected', 404);
+
         $trace = $lineage->trace($person);
-        $displayPath = $trace['connected_to_prophet']
-            ? $trace['path_text']
-            : trim('محمد ﷺ ← [صلة نسب مفقودة أو غير موثقة] ← '.$trace['path_text']);
+        abort_unless($trace['connected_to_prophet'], 404);
 
         return response()->json([
             'person' => new PersonResource($person),
-            'connected_to_prophet' => $trace['connected_to_prophet'],
+            'connected_to_prophet' => true,
             'fully_confirmed' => $trace['fully_confirmed'],
             'pending_review_count' => $trace['pending_review_count'],
             'lineage_status' => $trace['status'],
-            'prophet' => $trace['prophet'] ? new PersonResource($trace['prophet']) : null,
-            'highest_known_ancestor' => $trace['highest_known_ancestor']
-                ? new PersonResource($trace['highest_known_ancestor'])
-                : null,
-            'missing_parent_for' => $trace['missing_parent_for']
-                ? new PersonResource($trace['missing_parent_for'])
-                : null,
+            'prophet' => new PersonResource($trace['prophet']),
             'path' => PersonResource::collection($trace['path']),
             'path_text' => $trace['path_text'],
-            'display_path_text' => $displayPath,
+            'display_path_text' => $trace['path_text'],
             'relation_count' => $trace['relation_count'],
-            'cycle_detected' => $trace['cycle_detected'],
-        ]);
-    }
-
-    public function lineageGaps(PropheticLineageService $lineage): JsonResponse
-    {
-        $people = Person::query()
-            ->where('approval_status', '!=', 'rejected')
-            ->orderByRaw('chart_order is null')
-            ->orderBy('chart_order')
-            ->orderBy('generation')
-            ->orderBy('id')
-            ->get();
-        $lineage->warm($people);
-
-        $traces = $people
-            ->map(fn (Person $person) => ['person' => $person, 'trace' => $lineage->trace($person)])
-            ->reject(fn (array $item) => $item['trace']['connected_to_prophet']);
-
-        $groups = $traces
-            ->groupBy(fn (array $item) => $item['trace']['highest_known_ancestor']?->id ?? 'unknown')
-            ->map(function ($items) {
-                $first = $items->first();
-                $highest = $first['trace']['highest_known_ancestor'];
-                $examples = $items
-                    ->sortByDesc(fn (array $item) => $item['trace']['path']->count())
-                    ->take(5)
-                    ->map(fn (array $item) => [
-                        'person' => new PersonResource($item['person']),
-                        'known_path' => PersonResource::collection($item['trace']['path']),
-                        'known_path_text' => $item['trace']['path_text'],
-                        'display_path_text' => trim('محمد ﷺ ← [صلة نسب مفقودة أو غير موثقة] ← '.$item['trace']['path_text']),
-                        'lineage_status' => $item['trace']['status'],
-                        'pending_review_count' => $item['trace']['pending_review_count'],
-                    ])
-                    ->values();
-
-                return [
-                    'missing_parent_for' => $highest ? new PersonResource($highest) : null,
-                    'known_chain_members_count' => $items->count(),
-                    'display_start' => $highest
-                        ? 'محمد ﷺ ← [صلة نسب مفقودة أو غير موثقة] ← '.$highest->full_name
-                        : 'محمد ﷺ ← [صلة نسب مفقودة أو غير موثقة]',
-                    'examples' => $examples,
-                ];
-            })
-            ->values();
-
-        return response()->json([
-            'definition' => 'منقطعة النسب: كل سلسلة لا يصل مسار آبائها المسجل غير المرفوض حتى محمد ﷺ.',
-            'prophet_source_code' => PropheticLineageService::PROPHET_SOURCE_CODE,
-            'groups_count' => $groups->count(),
-            'people_count' => $traces->count(),
-            'data' => $groups,
+            'cycle_detected' => false,
         ]);
     }
 
     public function stats(PropheticLineageService $lineage): JsonResponse
     {
-        $people = Person::query()
-            ->where('approval_status', '!=', 'rejected')
-            ->get();
-        $lineage->warm($people);
-
-        $traces = $people->map(fn (Person $person) => $lineage->trace($person));
-        $connected = $traces->filter(fn (array $trace) => $trace['connected_to_prophet']);
-        $connectedConfirmed = $traces->filter(fn (array $trace) => $trace['fully_confirmed']);
-        $connectedPending = $connected->reject(fn (array $trace) => $trace['fully_confirmed']);
-        $disconnected = $traces->reject(fn (array $trace) => $trace['connected_to_prophet']);
+        [$allPeople, $connectedIds] = $this->connectedPeople($lineage);
+        $connectedPeople = $allPeople->whereIn('id', $connectedIds)->values();
+        $traces = $connectedPeople->map(fn (Person $person) => $lineage->trace($person));
+        $confirmedIds = $connectedPeople
+            ->filter(fn (Person $person) => $lineage->trace($person)['fully_confirmed'])
+            ->pluck('id');
+        $pendingIds = $connectedPeople->pluck('id')->diff($confirmedIds)->values();
 
         return response()->json([
-            'total' => $people->count(),
-            'connected_to_prophet' => $connected->count(),
-            'connected_to_prophet_confirmed' => $connectedConfirmed->count(),
-            'connected_to_prophet_pending_review' => $connectedPending->count(),
-            'disconnected_from_prophet' => $disconnected->count(),
-            'confirmed' => Person::where('approval_status', 'supervisor_confirmed')->count(),
-            'pending_supervisor' => Person::where('approval_status', 'pending_supervisor')->count(),
-            'readable' => Person::where('approval_status', '!=', 'rejected')->where('status', 'readable')->count(),
-            'review' => Person::where('approval_status', '!=', 'rejected')->where('status', 'review')->count(),
-            'unclear' => Person::where('approval_status', '!=', 'rejected')->where('status', 'unclear')->count(),
-            'generations' => Person::where('approval_status', '!=', 'rejected')->max('generation') ?? 0,
+            'total' => $connectedPeople->count(),
+            'connected_to_prophet' => $connectedPeople->count(),
+            'connected_to_prophet_confirmed' => $confirmedIds->count(),
+            'connected_to_prophet_pending_review' => $pendingIds->count(),
+            'disconnected_from_prophet' => 0,
+            'confirmed' => Person::whereIn('id', $connectedIds)->where('approval_status', 'supervisor_confirmed')->count(),
+            'pending_supervisor' => Person::whereIn('id', $connectedIds)->where('approval_status', 'pending_supervisor')->count(),
+            'readable' => Person::whereIn('id', $connectedIds)->where('status', 'readable')->count(),
+            'review' => Person::whereIn('id', $connectedIds)->where('status', 'review')->count(),
+            'unclear' => Person::whereIn('id', $connectedIds)->where('status', 'unclear')->count(),
+            'generations' => Person::whereIn('id', $connectedIds)->max('generation') ?? 0,
             'branches' => Person::query()
-                ->where('approval_status', '!=', 'rejected')
+                ->whereIn('id', $connectedIds)
                 ->whereNotNull('chart_branch')
                 ->where('chart_branch', '!=', 'central_trunk')
                 ->distinct('chart_branch')
                 ->count('chart_branch'),
         ]);
+    }
+
+    /**
+     * @return array{0: Collection<int, Person>, 1: Collection<int, int>}
+     */
+    private function connectedPeople(PropheticLineageService $lineage): array
+    {
+        $people = Person::query()
+            ->where('approval_status', '!=', 'rejected')
+            ->get();
+        $connectedIds = $lineage->connectedIds($people);
+
+        return [$people, $connectedIds];
     }
 }
