@@ -26,4 +26,11 @@ class ChartEdge extends Model
             'confidence' => 'integer',
         ];
     }
+
+    protected static function booted(): void
+    {
+        static::saving(function (ChartEdge $edge): void {
+            $edge->relation_type = 'lineage';
+        });
+    }
 }
