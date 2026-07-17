@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { pdfLineageSuggestions, type PdfLineageSuggestion } from '../data/pdfLineageSuggestions';
 import { colors, radius, shadow } from '../theme';
 import type { ChartEdge, ChartReading, Person } from '../types';
 
@@ -10,7 +9,6 @@ export type DisconnectedLineageItem = {
   id: number;
   person: Person;
   paths: Person[][];
-  pdfSuggestion?: PdfLineageSuggestion;
   candidates: Array<{
     sourceKey: string;
     name: string;
@@ -75,11 +73,10 @@ export function buildDisconnectedLineages(
         id: person.id,
         person,
         paths: collectPaths(person, childrenByParentId),
-        pdfSuggestion: person.source_code ? pdfLineageSuggestions[person.source_code] : undefined,
         candidates: [...candidates.values()].sort((a, b) => b.confidence - a.confidence),
       };
     })
-    .sort((a, b) => Number(!!b.pdfSuggestion) - Number(!!a.pdfSuggestion) || b.candidates.length - a.candidates.length || (a.person.chart_order ?? a.id) - (b.person.chart_order ?? b.id));
+    .sort((a, b) => b.candidates.length - a.candidates.length || (a.person.chart_order ?? a.id) - (b.person.chart_order ?? b.id));
 }
 
 export function DisconnectedLineageCard({ item }: { item: DisconnectedLineageItem }) {
@@ -105,21 +102,7 @@ export function DisconnectedLineageCard({ item }: { item: DisconnectedLineageIte
         </Text>
       ))}
 
-      {!!item.pdfSuggestion && (
-        <View style={styles.pdfSuggestion}>
-          <View style={styles.pdfHeader}>
-            <Ionicons name="document-attach" size={22} color="#8A661E" />
-            <Text style={styles.pdfTitle}>اقتراح من المشجرة الأصلية PDF</Text>
-          </View>
-          <Text style={styles.pdfParent}>الأب المقترح: {item.pdfSuggestion.suggestedParentName}</Text>
-          <Text style={styles.pdfLineage}>{item.pdfSuggestion.knownLineage}</Text>
-          <Text style={styles.candidateStatus}>الثقة {item.pdfSuggestion.confidence}%</Text>
-          <Text style={styles.locator}>{item.pdfSuggestion.evidence}</Text>
-          {!!item.pdfSuggestion.reviewNote && <Text style={styles.pdfNote}>{item.pdfSuggestion.reviewNote}</Text>}
-        </View>
-      )}
-
-      <Text style={styles.subTitle}>اقتراح الأب من العلاقات المسجلة</Text>
+      <Text style={styles.subTitle}>اقتراح الأب</Text>
       {item.candidates.length ? item.candidates.map((candidate) => (
         <View key={`${item.id}-${candidate.sourceKey}`} style={styles.candidate}>
           <Ionicons name="document-text" size={21} color={colors.gold} />
@@ -130,15 +113,15 @@ export function DisconnectedLineageCard({ item }: { item: DisconnectedLineageIte
             {!!candidate.sourceLocator && <Text style={styles.locator}>{candidate.sourceLocator}</Text>}
           </View>
         </View>
-      )) : !item.pdfSuggestion ? (
+      )) : (
         <View style={styles.pdfBox}>
           <Ionicons name="document-attach" size={22} color="#8A661E" />
-          <Text style={styles.pdfText}>لا يوجد سهم مقروء يحدد الأب. يحتاج هذا الاسم إلى مراجعة المشجرة الأصلية أو صورة مكبرة من موضعه.</Text>
+          <Text style={styles.pdfText}>لا يوجد سهم مقروء يحدد الأب. يحتاج هذا الاسم إلى مراجعة ملف PDF الأصلي أو صورة مكبرة من موضعه.</Text>
         </View>
-      ) : null}
+      )}
 
       {!!item.person.source_locator && <Text style={styles.locator}>الموضع: {item.person.source_locator}</Text>}
-      <Pressable onPress={() => router.push(`/person/${item.person.id}`)} style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}>
+      <Pressable onPress={() => router.push(`/person/${item.person.id}`)} style={styles.openButton}>
         <Ionicons name="git-network" size={19} color={colors.white} />
         <Text style={styles.openText}>فتح الاسم ومراجعة موضعه</Text>
       </Pressable>
@@ -193,15 +176,8 @@ const styles = StyleSheet.create({
   candidateCode: { color: '#8A661E', fontSize: 10, fontWeight: '800', marginTop: 2, textAlign: 'right' },
   candidateStatus: { color: colors.text, fontSize: 11, marginTop: 4, textAlign: 'right' },
   locator: { color: colors.muted, fontSize: 10, lineHeight: 17, marginTop: 4, textAlign: 'right' },
-  pdfSuggestion: { backgroundColor: colors.goldSoft, borderColor: colors.gold, borderRadius: radius.md, borderWidth: 1, marginTop: 8, padding: 12 },
-  pdfHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 7 },
-  pdfTitle: { color: '#8A661E', fontSize: 13, fontWeight: '900' },
-  pdfParent: { color: colors.primary, fontSize: 16, fontWeight: '900', marginTop: 9, textAlign: 'right' },
-  pdfLineage: { color: colors.text, fontSize: 13, lineHeight: 23, marginTop: 6, textAlign: 'right' },
-  pdfNote: { color: colors.text, fontSize: 11, lineHeight: 19, marginTop: 6, textAlign: 'right' },
   pdfBox: { alignItems: 'flex-start', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 8, marginTop: 7, padding: 11 },
   pdfText: { color: colors.text, flex: 1, fontSize: 11, lineHeight: 19, textAlign: 'right' },
   openButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', marginTop: 13, minHeight: 48 },
   openText: { color: colors.white, fontSize: 13, fontWeight: '900' },
-  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
 });
