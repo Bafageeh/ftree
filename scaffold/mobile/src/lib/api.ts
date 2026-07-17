@@ -52,12 +52,42 @@ const coreFallback: Person[] = coreNames.map((full_name, index) => ({
 const fallbackPeople = bundledPeople.length > coreFallback.length ? bundledPeople : coreFallback;
 const bundledProvisionalCount = bundledPeople.filter((person) => person.is_provisional).length;
 
+function bundledReadingConfidence(status: ReadingStatus): number {
+  if (status === 'readable') return 98;
+  if (status === 'review') return 82;
+  return 55;
+}
+
+function readingsFromPeople(source: Person[]): ChartReading[] {
+  const byId = new Map(source.map((person) => [person.id, person]));
+  return source
+    .filter((person) => person.is_provisional || person.approval_status === 'pending_supervisor')
+    .map((person) => ({
+      id: person.chart_reading_id ?? -(100000 + person.id),
+      source_key: person.source_code ?? `PERSON-${person.id}`,
+      provisional_name: person.full_name,
+      normalized_name: person.status === 'readable' ? person.full_name : null,
+      parent_source_key: person.lineage_parent_id ? byId.get(person.lineage_parent_id)?.source_code ?? null : null,
+      chart_branch: person.chart_branch,
+      chart_color: person.chart_color,
+      node_type: person.node_type ?? 'person',
+      reading_status: person.status,
+      confidence: bundledReadingConfidence(person.status),
+      source_locator: person.source_locator,
+      notes: person.summary,
+      is_promoted: true,
+      person_id: person.id,
+    }));
+}
+
+const fallbackChartReadings = readingsFromPeople(fallbackPeople);
+
 const fallbackChartReadingStats: ChartReadingStats = {
-  total: Math.max(214, bundledProvisionalCount),
-  readable: 176,
-  review: 30,
-  unclear: 8,
-  promoted: Math.max(214, bundledProvisionalCount),
+  total: Math.max(214, fallbackChartReadings.length, bundledProvisionalCount),
+  readable: fallbackChartReadings.filter((reading) => reading.reading_status === 'readable').length || 176,
+  review: fallbackChartReadings.filter((reading) => reading.reading_status === 'review').length || 30,
+  unclear: fallbackChartReadings.filter((reading) => reading.reading_status === 'unclear').length || 8,
+  promoted: Math.max(214, fallbackChartReadings.length, bundledProvisionalCount),
 };
 
 const fallbackChartEdges: ChartEdge[] = [
@@ -119,7 +149,7 @@ const fallbackChartEdges: ChartEdge[] = [
     reading_status: 'review',
     confidence: 82,
     approval_status: 'pending_supervisor',
-    source_locator: 'الفرع الأزرق - ورقة محمد شروق',
+    source_locator: 'الفرع الأزرق - ورقة محمد شريم',
   },
   {
     id: -7,
@@ -129,7 +159,7 @@ const fallbackChartEdges: ChartEdge[] = [
     reading_status: 'review',
     confidence: 82,
     approval_status: 'pending_supervisor',
-    source_locator: 'الفرع الأزرق - ورقة محمد شروق',
+    source_locator: 'الفرع الأزرق - ورقة محمد شريم',
   },
 ];
 
@@ -174,6 +204,10 @@ function filterPeople(source: Person[], search = '', status = ''): Person[] {
   });
 }
 
+function pendingPeople(source: Person[]): Person[] {
+  return source.filter((person) => person.approval_status === 'pending_supervisor' || person.is_provisional);
+}
+
 function statsFromPeople(source: Person[]): Stats {
   const generations = source.length ? Math.max(...source.map((person) => person.generation || 1)) : 0;
   return {
@@ -195,6 +229,17 @@ export async function getPeople(search = '', status = ''): Promise<Person[]> {
     return filterPeople(source, search, status);
   } catch {
     return filterPeople(fallbackPeople, search, status);
+  }
+}
+
+export async function getPendingPeople(): Promise<Person[]> {
+  try {
+    const result = await request<PaginatedPeople>('/people?per_page=250&approval_status=pending_supervisor');
+    const remote = pendingPeople(result.data);
+    const local = pendingPeople(fallbackPeople);
+    return local.length > remote.length ? local : remote;
+  } catch {
+    return pendingPeople(fallbackPeople);
   }
 }
 
@@ -230,7 +275,18 @@ export async function getLineage(id: number): Promise<LineageResponse> {
 export async function getChartReadings(status: ReadingStatus | '' = ''): Promise<ChartReading[]> {
   const params = new URLSearchParams({ per_page: '250' });
   if (status) params.set('status', status);
-  return (await request<PaginatedChartReadings>(`/chart-readings?${params.toString()}`)).data;
+
+  try {
+    const remote = (await request<PaginatedChartReadings>(`/chart-readings?${params.toString()}`)).data;
+    const local = status
+      ? fallbackChartReadings.filter((reading) => reading.reading_status === status)
+      : fallbackChartReadings;
+    return local.length > remote.length ? local : remote;
+  } catch {
+    return status
+      ? fallbackChartReadings.filter((reading) => reading.reading_status === status)
+      : fallbackChartReadings;
+  }
 }
 
 export async function getChartReadingStats(): Promise<ChartReadingStats> {
@@ -244,7 +300,7 @@ export async function getChartReadingStats(): Promise<ChartReadingStats> {
 
 export async function getChartEdges(): Promise<ChartEdge[]> {
   try {
-    const result = await request<ChartEdgeResponse>('/chart-edges');
+    const result = await request<ChartEdgeResponse>('/chart-edges?per_page=250');
     return result.data.length >= fallbackChartEdges.length ? result.data : fallbackChartEdges;
   } catch {
     return fallbackChartEdges;
