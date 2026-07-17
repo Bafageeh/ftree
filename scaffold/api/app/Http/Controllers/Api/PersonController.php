@@ -10,6 +10,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PersonController extends Controller
 {
@@ -90,8 +94,21 @@ class PersonController extends Controller
         $trace = $lineage->trace($person);
         abort_unless($trace['connected_to_prophet'], 404);
 
+        $children = Person::query()
+            ->where('lineage_parent_id', $person->id)
+            ->where('approval_status', '!=', 'rejected')
+            ->orderByRaw('chart_order is null')
+            ->orderBy('chart_order')
+            ->orderBy('full_name')
+            ->get();
+        $descendantIds = $this->descendantIds($person->id);
+        $person->setRelation('children', $children);
+
         return response()->json([
             'person' => new PersonResource($person),
+            'children' => PersonResource::collection($children),
+            'children_count' => $children->count(),
+            'descendants_count' => count($descendantIds),
             'connected_to_prophet' => true,
             'fully_confirmed' => $trace['fully_confirmed'],
             'pending_review_count' => $trace['pending_review_count'],
@@ -105,11 +122,131 @@ class PersonController extends Controller
         ]);
     }
 
+    public function update(Request $request, Person $person): PersonResource
+    {
+        $validated = $request->validate([
+            'full_name' => ['required', 'string', 'max:255'],
+            'source_code' => ['nullable', 'string', 'max:120', Rule::unique('people', 'source_code')->ignore($person->id)],
+            'honorific' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', Rule::in(['readable', 'review', 'unclear'])],
+            'supervisor_note' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $person->fill([
+            'full_name' => trim($validated['full_name']),
+            'source_code' => filled($validated['source_code'] ?? null) ? trim($validated['source_code']) : null,
+            'honorific' => filled($validated['honorific'] ?? null) ? trim($validated['honorific']) : null,
+            'status' => $validated['status'],
+            'supervisor_note' => filled($validated['supervisor_note'] ?? null) ? trim($validated['supervisor_note']) : null,
+        ]);
+        $person->save();
+        $person->load('parent');
+
+        return new PersonResource($person);
+    }
+
+    public function addChildren(Request $request, Person $person): JsonResponse
+    {
+        $validated = $request->validate([
+            'count' => ['required', 'integer', 'min:1', 'max:50'],
+            'names' => ['sometimes', 'array', 'max:50'],
+            'names.*' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $count = (int) $validated['count'];
+        $names = collect($validated['names'] ?? [])->map(fn ($name) => trim((string) $name))->values();
+        $nextOrder = ((int) Person::max('chart_order')) + 1;
+        $created = collect();
+
+        DB::transaction(function () use ($person, $count, $names, $nextOrder, $created): void {
+            for ($index = 0; $index < $count; $index++) {
+                $providedName = $names->get($index, '');
+                $sourceCode = sprintf(
+                    'MANUAL-P%d-%s-%02d-%s',
+                    $person->id,
+                    now()->format('YmdHis'),
+                    $index + 1,
+                    Str::upper(Str::random(4)),
+                );
+                $isPlaceholder = $providedName === '';
+
+                $child = Person::create([
+                    'full_name' => $isPlaceholder ? $sourceCode : $providedName,
+                    'source_code' => $sourceCode,
+                    'node_type' => 'person',
+                    'honorific' => null,
+                    'lineage_parent_id' => $person->id,
+                    'status' => $isPlaceholder ? 'unclear' : 'readable',
+                    'approval_status' => 'pending_supervisor',
+                    'is_provisional' => true,
+                    'supervisor_note' => $isPlaceholder
+                        ? 'ابن مضاف يدويًا باسم مؤقت؛ استبدل الرمز بالاسم الصحيح.'
+                        : 'ابن مضاف يدويًا من صفحة تفاصيل النسب.',
+                    'approved_at' => null,
+                    'chart_branch' => $person->chart_branch,
+                    'chart_color' => $person->chart_color,
+                    'generation' => ((int) $person->generation) + 1,
+                    'summary' => 'إضافة يدوية قابلة للتعديل والمراجعة.',
+                    'source_reference' => 'إضافة يدوية من التطبيق',
+                    'source_locator' => 'صفحة تفاصيل النسب للأب '.$person->full_name,
+                    'chart_order' => $nextOrder + $index,
+                    'is_living' => false,
+                ]);
+
+                $created->push($child);
+            }
+        });
+
+        return response()->json([
+            'message' => 'تمت إضافة الأبناء.',
+            'created_count' => $created->count(),
+            'children' => PersonResource::collection($created),
+        ], 201);
+    }
+
+    public function destroy(Person $person): JsonResponse
+    {
+        abort_if($person->source_code === 'CORE-001', 422, 'لا يمكن حذف أصل الشجرة سيد البشر محمد ﷺ.');
+
+        $descendantIds = $this->descendantIds($person->id);
+        $allIds = array_values(array_unique([$person->id, ...$descendantIds]));
+        $sourceCodes = Person::query()->whereIn('id', $allIds)->pluck('source_code')->filter()->values();
+
+        DB::transaction(function () use ($allIds, $sourceCodes): void {
+            if (Schema::hasTable('chart_readings') && Schema::hasColumn('chart_readings', 'person_id')) {
+                DB::table('chart_readings')->whereIn('person_id', $allIds)->update(['person_id' => null]);
+            }
+
+            if (Schema::hasTable('review_requests') && Schema::hasColumn('review_requests', 'person_id')) {
+                DB::table('review_requests')->whereIn('person_id', $allIds)->update(['person_id' => null]);
+            }
+
+            if (Schema::hasTable('chart_edges') && $sourceCodes->isNotEmpty()) {
+                DB::table('chart_edges')
+                    ->whereIn('from_source_key', $sourceCodes)
+                    ->orWhereIn('to_source_key', $sourceCodes)
+                    ->delete();
+            }
+
+            Person::query()
+                ->whereIn('id', $allIds)
+                ->orderByDesc('generation')
+                ->orderByDesc('id')
+                ->get()
+                ->each(fn (Person $node) => $node->delete());
+        });
+
+        return response()->json([
+            'message' => 'تم حذف الاسم وجميع ذريته.',
+            'deleted_count' => count($allIds),
+            'descendants_deleted' => count($descendantIds),
+        ]);
+    }
+
     public function stats(PropheticLineageService $lineage): JsonResponse
     {
         [$allPeople, $connectedIds] = $this->connectedPeople($lineage);
         $connectedPeople = $allPeople->whereIn('id', $connectedIds)->values();
-        $traces = $connectedPeople->map(fn (Person $person) => $lineage->trace($person));
         $confirmedIds = $connectedPeople
             ->filter(fn (Person $person) => $lineage->trace($person)['fully_confirmed'])
             ->pluck('id');
@@ -134,6 +271,34 @@ class PersonController extends Controller
                 ->distinct('chart_branch')
                 ->count('chart_branch'),
         ]);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function descendantIds(int $rootId): array
+    {
+        $childrenByParent = Person::query()
+            ->where('approval_status', '!=', 'rejected')
+            ->get(['id', 'lineage_parent_id'])
+            ->groupBy('lineage_parent_id');
+        $result = [];
+        $seen = [$rootId => true];
+        $queue = [$rootId];
+
+        while ($queue !== []) {
+            $parentId = array_shift($queue);
+            foreach ($childrenByParent->get($parentId, collect()) as $child) {
+                if (isset($seen[$child->id])) {
+                    continue;
+                }
+                $seen[$child->id] = true;
+                $result[] = $child->id;
+                $queue[] = $child->id;
+            }
+        }
+
+        return $result;
     }
 
     /**
