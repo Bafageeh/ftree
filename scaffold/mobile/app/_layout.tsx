@@ -21,7 +21,6 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="person/[id]" options={{ title: 'تفاصيل النسب', presentation: 'card' }} />
-        <Stack.Screen name="source-chart" options={{ title: 'المشجرة الأصلية', presentation: 'card' }} />
       </Stack>
     </>
   );
