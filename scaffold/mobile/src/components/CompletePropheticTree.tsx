@@ -56,8 +56,6 @@ export function CompletePropheticTree({
       const children = graph.childrenByParent.get(person.id) ?? [];
       let childVisible = false;
 
-      // Visit every child. Using Array.some here stopped after the first visible child,
-      // which hid all sibling branches and made every card show only one child.
       children.forEach((child) => {
         if (visit(child, next)) childVisible = true;
       });
@@ -106,6 +104,7 @@ export function CompletePropheticTree({
     const selectedNode = person.id === selectedId;
     const status = nodeStatus(person);
     const branch = person.chart_branch ? branchLabels[person.chart_branch] : null;
+    const hasBranches = children.length > 1;
 
     return (
       <View key={person.id} style={styles.nodeGroup}>
@@ -116,7 +115,7 @@ export function CompletePropheticTree({
             styles.node,
             prophet && styles.prophetNode,
             selectedNode && styles.selectedNode,
-            { marginHorizontal: Math.min(depth * 5, 30) },
+            { marginHorizontal: Math.min(depth * 2, 12) },
           ]}
         >
           {prophet && <Text style={styles.prophetLabel}>أصل الشجرة</Text>}
@@ -125,22 +124,36 @@ export function CompletePropheticTree({
           {!!branch && branch !== 'الجذع الأوسط' && (
             <Text style={[styles.branch, prophet && styles.prophetMeta]}>{branch}</Text>
           )}
-          <View style={[styles.statusPill, { backgroundColor: status.soft }]}> 
+          <View style={[styles.statusPill, { backgroundColor: status.soft }]}>
             <Ionicons name={status.icon} size={13} color={status.color} />
             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
           </View>
           {!!children.length && <Text style={[styles.childrenCount, prophet && styles.prophetMeta]}>الأبناء: {children.length}</Text>}
         </Pressable>
 
-        {!!children.length && (
+        {!!children.length && !hasBranches && (
           <View style={styles.descendants}>
-            {children.map((child) => (
-              <View key={child.id} style={styles.childPath}>
-                <View style={styles.connector} />
-                <Ionicons name="arrow-down" size={21} color={colors.gold} />
-                {renderNode(child, depth + 1, nextVisited)}
-              </View>
-            ))}
+            <View style={styles.childPath}>
+              <View style={styles.connector} />
+              <Ionicons name="arrow-down" size={21} color={colors.gold} />
+              {renderNode(children[0], depth + 1, nextVisited)}
+            </View>
+          </View>
+        )}
+
+        {hasBranches && (
+          <View style={styles.descendants}>
+            <View style={styles.forkStem} />
+            <View style={styles.forkBar} />
+            <View style={styles.childrenRow}>
+              {children.map((child) => (
+                <View key={child.id} style={styles.branchColumn}>
+                  <View style={styles.branchDrop} />
+                  <Ionicons name="arrow-down" size={19} color={colors.gold} />
+                  {renderNode(child, depth + 1, nextVisited)}
+                </View>
+              ))}
+            </View>
           </View>
         )}
       </View>
@@ -153,7 +166,7 @@ export function CompletePropheticTree({
         <Ionicons name="git-network" size={24} color={colors.gold} />
         <View style={styles.flex}>
           <Text style={styles.noticeTitle}>الشجرة الكاملة المتصلة</Text>
-          <Text style={styles.noticeText}>تبدأ من سيد البشر محمد ﷺ، وتعرض جميع الأسماء التي يصل مسار آبائها إليه دون تحديد عدد أجيال أو إخفاء مستويات.</Text>
+          <Text style={styles.noticeText}>تبدأ من سيد البشر محمد ﷺ، وتعرض الأبناء المتفرعين في المستوى نفسه ثم تتابع ذرية كل فرع تحته.</Text>
         </View>
       </View>
 
@@ -212,7 +225,7 @@ export function CompletePropheticTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>اضغط على الاسم لإظهار مساره كاملًا، واضغط مطولًا لفتح صفحة تفاصيل النسب.</Text>
+        <Text style={styles.tipText}>عند وجود أكثر من ابن ستظهر فروعهم جنبًا إلى جنب، ثم تنزل ذرية كل ابن داخل عموده.</Text>
       </View>
     </View>
   );
@@ -277,23 +290,28 @@ const styles = StyleSheet.create({
   openButton: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   openButtonText: { color: colors.white, fontSize: 10, fontWeight: '900' },
   pathText: { color: colors.text, fontSize: 12, lineHeight: 22, marginTop: 10, textAlign: 'right' },
-  treeShell: { backgroundColor: '#FAF7EF', borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 12, ...shadow },
+  treeShell: { backgroundColor: '#FAF7EF', borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 8, ...shadow },
   nodeGroup: { alignItems: 'stretch', width: '100%' },
-  node: { alignItems: 'center', alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1.2, maxWidth: 620, padding: 12, width: '92%', ...shadow },
+  node: { alignItems: 'center', alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1.2, maxWidth: 620, paddingHorizontal: 8, paddingVertical: 11, width: '94%', ...shadow },
   prophetNode: { backgroundColor: colors.primary, borderColor: colors.gold, borderWidth: 2 },
   selectedNode: { borderColor: colors.gold, borderWidth: 2.2 },
   prophetLabel: { color: '#E8C977', fontSize: 10, fontWeight: '900' },
-  nodeName: { color: colors.primary, fontSize: 17, fontWeight: '900', marginTop: 3, textAlign: 'center' },
+  nodeName: { color: colors.primary, fontSize: 15, fontWeight: '900', marginTop: 3, textAlign: 'center' },
   prophetName: { color: colors.white, fontSize: 20 },
-  nodeCode: { color: '#8A661E', fontSize: 10, fontWeight: '800', marginTop: 4 },
+  nodeCode: { color: '#8A661E', fontSize: 9, fontWeight: '800', marginTop: 4 },
   prophetMeta: { color: '#DDE8E4' },
-  branch: { color: '#8A661E', fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  statusPill: { alignItems: 'center', borderRadius: radius.pill, flexDirection: 'row-reverse', gap: 4, marginTop: 7, paddingHorizontal: 9, paddingVertical: 5 },
-  statusText: { fontSize: 9, fontWeight: '900' },
+  branch: { color: '#8A661E', fontSize: 9, fontWeight: '800', marginTop: 4, textAlign: 'center' },
+  statusPill: { alignItems: 'center', borderRadius: radius.pill, flexDirection: 'row-reverse', gap: 4, marginTop: 7, paddingHorizontal: 8, paddingVertical: 5 },
+  statusText: { fontSize: 8, fontWeight: '900' },
   childrenCount: { color: colors.muted, fontSize: 9, marginTop: 6 },
   descendants: { alignItems: 'stretch', width: '100%' },
   childPath: { alignItems: 'center', width: '100%' },
   connector: { backgroundColor: colors.gold, height: 18, width: 2 },
+  forkStem: { alignSelf: 'center', backgroundColor: colors.gold, height: 18, width: 2 },
+  forkBar: { alignSelf: 'center', backgroundColor: colors.gold, height: 2, width: '72%' },
+  childrenRow: { alignItems: 'flex-start', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', width: '100%' },
+  branchColumn: { alignItems: 'center', paddingHorizontal: 2, width: '50%' },
+  branchDrop: { backgroundColor: colors.gold, height: 16, width: 2 },
   tip: { alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, marginTop: 12, padding: 11 },
   tipText: { color: '#765714', flex: 1, fontSize: 10, lineHeight: 18, textAlign: 'right' },
   emptyBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 35 },
