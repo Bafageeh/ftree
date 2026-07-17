@@ -54,7 +54,14 @@ export function CompletePropheticTree({
       if (visiting.has(person.id)) return false;
       const next = new Set(visiting).add(person.id);
       const children = graph.childrenByParent.get(person.id) ?? [];
-      const childVisible = children.some((child) => visit(child, next));
+      let childVisible = false;
+
+      // Visit every child. Using Array.some here stopped after the first visible child,
+      // which hid all sibling branches and made every card show only one child.
+      children.forEach((child) => {
+        if (visit(child, next)) childVisible = true;
+      });
+
       const selfVisible = matchesStatus(person, statusFilter);
       if (selfVisible || childVisible || statusFilter === 'all') visible.add(person.id);
       return selfVisible || childVisible || statusFilter === 'all';
