@@ -29,6 +29,10 @@ export type Person = {
 
 export type Stats = {
   total: number;
+  connected_to_prophet?: number;
+  connected_to_prophet_confirmed?: number;
+  connected_to_prophet_pending_review?: number;
+  disconnected_from_prophet?: number;
   confirmed?: number;
   pending_supervisor?: number;
   readable: number;
@@ -49,8 +53,18 @@ export type PaginatedPeople = {
 
 export type LineageResponse = {
   person: Person;
+  connected_to_prophet?: boolean;
+  fully_confirmed?: boolean;
+  pending_review_count?: number;
+  lineage_status?: string;
+  prophet?: Person | null;
+  highest_known_ancestor?: Person | null;
+  missing_parent_for?: Person | null;
   path: Person[];
   path_text: string;
+  display_path_text?: string;
+  relation_count?: number;
+  cycle_detected?: boolean;
 };
 
 export type ChartReading = {
