@@ -94,11 +94,25 @@ jobs:
 
           php artisan optimize:clear
           php artisan migrate --force
+          php artisan storage:link >/dev/null 2>&1 || true
           php artisan optimize:clear
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          php artisan route:list --path=api/v1
+
+          ROUTES=$(php artisan route:list --path=api/v1)
+          printf '%s\n' "$ROUTES"
+          printf '%s' "$ROUTES" | grep -q 'people/{person}/profile'
+          printf '%s' "$ROUTES" | grep -q 'people/{person}/photo'
+
+          php artisan tinker --execute="
+            foreach (['gender', 'general_details', 'profile_photo_path'] as \$column) {
+                if (!Illuminate\\Support\\Facades\\Schema::hasColumn('people', \$column)) {
+                    throw new RuntimeException('Missing people profile column: '.\$column);
+                }
+            }
+            echo 'profile-columns-ok';
+          " | grep -q 'profile-columns-ok'
 
           chown -R pmsa:pmsa "$API_PATH"
           chmod -R ug+rwX "$API_PATH/storage" "$API_PATH/bootstrap/cache"
@@ -108,6 +122,7 @@ jobs:
             chown -h pmsa:pmsa "$WEB_ROOT"
           fi
           echo "Published web root: $(readlink -f "$WEB_ROOT" 2>/dev/null || echo "$WEB_ROOT")"
+          test -L "$API_PATH/public/storage" || test -d "$API_PATH/public/storage"
 
           STATS_JSON=$(curl -ksS --fail --retry 3 --retry-delay 2 --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/stats)
           PEOPLE_JSON=$(curl -ksS --fail --retry 3 --retry-delay 2 --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250&lineage_status=connected')
@@ -132,6 +147,16 @@ jobs:
             if (!is_array($peoplePayload) || !isset($peoplePayload["data"]) || count($peoplePayload["data"]) < 57) {
                 fwrite(STDERR, "People endpoint is missing imported genealogy records.\n");
                 exit(1);
+            }
+
+            foreach ($peoplePayload["data"] as $person) {
+                foreach (["gender", "general_details", "profile_photo_url"] as $field) {
+                    if (!array_key_exists($field, $person)) {
+                        fwrite(STDERR, "Person resource is missing {$field}.\n");
+                        exit(1);
+                    }
+                }
+                break;
             }
 
             $people = [];
@@ -167,5 +192,5 @@ jobs:
             }
           ' "$STATS_JSON" "$PEOPLE_JSON"
 
-          echo 'Shajara API deployed with all imported genealogy records verified.'
+          echo 'Shajara API deployed with profile details, gender, and photo upload verified.'
           REMOTE
