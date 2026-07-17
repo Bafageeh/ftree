@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -87,7 +86,7 @@ return new class extends Migration
             $parent = DB::table('people')->where('source_code', $row['parent_code'])->first();
 
             if (! $parent) {
-                throw new RuntimeException("Missing genealogy parent {$row['parent_code']} for {$row['source_code']}.");
+                throw new \RuntimeException("Missing genealogy parent {$row['parent_code']} for {$row['source_code']}.");
             }
 
             DB::table('people')->updateOrInsert(
