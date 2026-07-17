@@ -15,6 +15,7 @@ class PersonController extends Controller
     {
         $people = Person::query()
             ->with('parent:id,full_name,honorific,source_code,approval_status')
+            ->when(! $request->filled('approval_status'), fn ($query) => $query->where('approval_status', '!=', 'rejected'))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = trim((string) $request->string('search'));
                 $query->where(function ($nested) use ($search) {
@@ -66,14 +67,15 @@ class PersonController extends Controller
     public function stats(): JsonResponse
     {
         return response()->json([
-            'total' => Person::count(),
+            'total' => Person::where('approval_status', '!=', 'rejected')->count(),
             'confirmed' => Person::where('approval_status', 'supervisor_confirmed')->count(),
             'pending_supervisor' => Person::where('approval_status', 'pending_supervisor')->count(),
-            'readable' => Person::where('status', 'readable')->count(),
-            'review' => Person::where('status', 'review')->count(),
-            'unclear' => Person::where('status', 'unclear')->count(),
-            'generations' => Person::max('generation') ?? 0,
+            'readable' => Person::where('approval_status', '!=', 'rejected')->where('status', 'readable')->count(),
+            'review' => Person::where('approval_status', '!=', 'rejected')->where('status', 'review')->count(),
+            'unclear' => Person::where('approval_status', '!=', 'rejected')->where('status', 'unclear')->count(),
+            'generations' => Person::where('approval_status', '!=', 'rejected')->max('generation') ?? 0,
             'branches' => Person::query()
+                ->where('approval_status', '!=', 'rejected')
                 ->whereNotNull('chart_branch')
                 ->where('chart_branch', '!=', 'central_trunk')
                 ->distinct('chart_branch')
