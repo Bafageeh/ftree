@@ -23,6 +23,7 @@ const configuredUrl = process.env.EXPO_PUBLIC_API_URL
   ?? 'https://shajara.pm.sa/api/v1';
 
 export const API_URL = String(configuredUrl).replace(/\/$/, '');
+const PROPHET_SOURCE_CODE = 'CORE-001';
 
 const coreNames = [
   'محمد ﷺ', 'فاطمة الزهراء', 'الحسين السبط', 'علي زين العابدين', 'محمد الباقر', 'جعفر الصادق',
@@ -49,8 +50,48 @@ const coreFallback: Person[] = coreNames.map((full_name, index) => ({
   is_living: false,
 }));
 
-const fallbackPeople = bundledPeople.length > coreFallback.length ? bundledPeople : coreFallback;
-const bundledProvisionalCount = bundledPeople.filter((person) => person.is_provisional).length;
+function connectedPeopleOnly(source: Person[]): Person[] {
+  const active = source.filter((person) => person.approval_status !== 'rejected');
+  const byId = new Map(active.map((person) => [person.id, person]));
+  const cache = new Map<number, boolean>();
+
+  const connected = (person: Person): boolean => {
+    if (cache.has(person.id)) return cache.get(person.id) as boolean;
+
+    const visited = new Set<number>();
+    let current: Person | undefined = person;
+
+    while (current && !visited.has(current.id)) {
+      if (cache.has(current.id)) {
+        const result = cache.get(current.id) as boolean;
+        visited.forEach((id) => cache.set(id, result));
+        return result;
+      }
+
+      visited.add(current.id);
+      if (current.source_code === PROPHET_SOURCE_CODE) {
+        visited.forEach((id) => cache.set(id, true));
+        return true;
+      }
+
+      if (!current.lineage_parent_id) {
+        visited.forEach((id) => cache.set(id, false));
+        return false;
+      }
+
+      current = byId.get(current.lineage_parent_id);
+    }
+
+    visited.forEach((id) => cache.set(id, false));
+    return false;
+  };
+
+  return active.filter(connected);
+}
+
+const fallbackSource = bundledPeople.length > coreFallback.length ? bundledPeople : coreFallback;
+const fallbackPeople = connectedPeopleOnly(fallbackSource);
+const bundledProvisionalCount = fallbackPeople.filter((person) => person.is_provisional).length;
 
 function bundledReadingConfidence(status: ReadingStatus): number {
   if (status === 'readable') return 98;
@@ -83,14 +124,14 @@ function readingsFromPeople(source: Person[]): ChartReading[] {
 const fallbackChartReadings = readingsFromPeople(fallbackPeople);
 
 const fallbackChartReadingStats: ChartReadingStats = {
-  total: Math.max(214, fallbackChartReadings.length, bundledProvisionalCount),
-  readable: fallbackChartReadings.filter((reading) => reading.reading_status === 'readable').length || 176,
-  review: fallbackChartReadings.filter((reading) => reading.reading_status === 'review').length || 30,
-  unclear: fallbackChartReadings.filter((reading) => reading.reading_status === 'unclear').length || 8,
-  promoted: Math.max(214, fallbackChartReadings.length, bundledProvisionalCount),
+  total: fallbackChartReadings.length,
+  readable: fallbackChartReadings.filter((reading) => reading.reading_status === 'readable').length,
+  review: fallbackChartReadings.filter((reading) => reading.reading_status === 'review').length,
+  unclear: fallbackChartReadings.filter((reading) => reading.reading_status === 'unclear').length,
+  promoted: Math.max(fallbackChartReadings.length, bundledProvisionalCount),
 };
 
-const fallbackChartEdges: ChartEdge[] = [
+const rawFallbackChartEdges: ChartEdge[] = [
   {
     id: -1,
     from_source_key: 'white-w007',
@@ -163,13 +204,28 @@ const fallbackChartEdges: ChartEdge[] = [
   },
 ];
 
+function filterChartReadingsByPeople(readings: ChartReading[], people: Person[]): ChartReading[] {
+  const ids = new Set(people.map((person) => person.id));
+  const codes = new Set(people.map((person) => person.source_code).filter((code): code is string => !!code));
+
+  return readings.filter((reading) =>
+    (reading.person_id != null && ids.has(reading.person_id)) || codes.has(reading.source_key),
+  );
+}
+
+function filterChartEdgesByPeople(edges: ChartEdge[], people: Person[]): ChartEdge[] {
+  const codes = new Set(people.map((person) => person.source_code).filter((code): code is string => !!code));
+  return edges.filter((edge) => codes.has(edge.from_source_key) && codes.has(edge.to_source_key));
+}
+
+const fallbackChartEdges = filterChartEdgesByPeople(rawFallbackChartEdges, fallbackPeople);
 const fallbackChartEdgeStats: ChartEdgeStats = {
   total: fallbackChartEdges.length,
   readable: fallbackChartEdges.filter((edge) => edge.reading_status === 'readable').length,
   review: fallbackChartEdges.filter((edge) => edge.reading_status === 'review').length,
   unclear: fallbackChartEdges.filter((edge) => edge.reading_status === 'unclear').length,
-  confirmed: 0,
-  pending_supervisor: fallbackChartEdges.length,
+  confirmed: fallbackChartEdges.filter((edge) => edge.approval_status === 'supervisor_confirmed').length,
+  pending_supervisor: fallbackChartEdges.filter((edge) => edge.approval_status === 'pending_supervisor').length,
 };
 
 type RequestOptions = { method?: 'GET' | 'POST'; body?: unknown };
@@ -210,10 +266,17 @@ function pendingPeople(source: Person[]): Person[] {
 
 function statsFromPeople(source: Person[]): Stats {
   const generations = source.length ? Math.max(...source.map((person) => person.generation || 1)) : 0;
+  const confirmed = source.filter((person) => person.approval_status === 'supervisor_confirmed' && !person.is_provisional).length;
+  const pending = source.filter((person) => person.approval_status === 'pending_supervisor' || person.is_provisional).length;
+
   return {
     total: source.length,
-    confirmed: source.filter((person) => person.approval_status === 'supervisor_confirmed' && !person.is_provisional).length,
-    pending_supervisor: source.filter((person) => person.approval_status === 'pending_supervisor' || person.is_provisional).length,
+    connected_to_prophet: source.length,
+    connected_to_prophet_confirmed: confirmed,
+    connected_to_prophet_pending_review: pending,
+    disconnected_from_prophet: 0,
+    confirmed,
+    pending_supervisor: pending,
     readable: source.filter((person) => person.status === 'readable').length,
     review: source.filter((person) => person.status === 'review').length,
     unclear: source.filter((person) => person.status === 'unclear').length,
@@ -224,9 +287,8 @@ function statsFromPeople(source: Person[]): Stats {
 
 export async function getPeople(search = '', status = ''): Promise<Person[]> {
   try {
-    const result = await request<PaginatedPeople>('/people?per_page=250');
-    const source = bundledPeople.length > result.data.length ? bundledPeople : result.data;
-    return filterPeople(source, search, status);
+    const result = await request<PaginatedPeople>('/people?per_page=250&lineage_status=connected');
+    return filterPeople(connectedPeopleOnly(result.data), search, status);
   } catch {
     return filterPeople(fallbackPeople, search, status);
   }
@@ -234,10 +296,8 @@ export async function getPeople(search = '', status = ''): Promise<Person[]> {
 
 export async function getPendingPeople(): Promise<Person[]> {
   try {
-    const result = await request<PaginatedPeople>('/people?per_page=250&approval_status=pending_supervisor');
-    const remote = pendingPeople(result.data);
-    const local = pendingPeople(fallbackPeople);
-    return local.length > remote.length ? local : remote;
+    const result = await request<PaginatedPeople>('/people?per_page=250&lineage_status=connected&approval_status=pending_supervisor');
+    return pendingPeople(connectedPeopleOnly(result.data));
   } catch {
     return pendingPeople(fallbackPeople);
   }
@@ -246,7 +306,7 @@ export async function getPendingPeople(): Promise<Person[]> {
 export async function getStats(): Promise<Stats> {
   try {
     const stats = await request<Stats>('/stats');
-    return bundledPeople.length > stats.total ? statsFromPeople(bundledPeople) : stats;
+    return { ...stats, disconnected_from_prophet: 0 };
   } catch {
     return statsFromPeople(fallbackPeople);
   }
@@ -254,11 +314,15 @@ export async function getStats(): Promise<Stats> {
 
 export async function getLineage(id: number): Promise<LineageResponse> {
   try {
-    return await request<LineageResponse>(`/people/${id}/lineage`);
+    const result = await request<LineageResponse>(`/people/${id}/lineage`);
+    if (result.connected_to_prophet === false || result.path[0]?.source_code !== PROPHET_SOURCE_CODE) {
+      throw new Error('هذا الاسم غير مرتبط بسيد البشر محمد ﷺ.');
+    }
+    return result;
   } catch {
     const byId = new Map(fallbackPeople.map((person) => [person.id, person]));
-    const selected = byId.get(id) ?? fallbackPeople[0];
-    if (!selected) throw new Error('لا توجد بيانات لمسار النسب.');
+    const selected = byId.get(id);
+    if (!selected) throw new Error('أُلغي هذا الاسم من العرض لأنه غير مرتبط بسيد البشر محمد ﷺ.');
 
     const path: Person[] = [];
     const visited = new Set<number>();
@@ -268,7 +332,24 @@ export async function getLineage(id: number): Promise<LineageResponse> {
       visited.add(current.id);
       current = current.lineage_parent_id ? byId.get(current.lineage_parent_id) : undefined;
     }
-    return { person: selected, path, path_text: path.map((item) => item.full_name).join(' ← ') };
+
+    if (path[0]?.source_code !== PROPHET_SOURCE_CODE) {
+      throw new Error('أُلغي هذا الاسم من العرض لأنه غير مرتبط بسيد البشر محمد ﷺ.');
+    }
+
+    return {
+      person: selected,
+      connected_to_prophet: true,
+      fully_confirmed: path.every((item) => item.approval_status === 'supervisor_confirmed'),
+      pending_review_count: path.filter((item) => item.approval_status !== 'supervisor_confirmed').length,
+      lineage_status: 'connected_to_prophet',
+      prophet: path[0],
+      path,
+      path_text: path.map((item) => item.full_name).join(' ← '),
+      display_path_text: path.map((item) => item.full_name).join(' ← '),
+      relation_count: Math.max(path.length - 1, 0),
+      cycle_detected: false,
+    };
   }
 }
 
@@ -277,11 +358,11 @@ export async function getChartReadings(status: ReadingStatus | '' = ''): Promise
   if (status) params.set('status', status);
 
   try {
-    const remote = (await request<PaginatedChartReadings>(`/chart-readings?${params.toString()}`)).data;
-    const local = status
-      ? fallbackChartReadings.filter((reading) => reading.reading_status === status)
-      : fallbackChartReadings;
-    return local.length > remote.length ? local : remote;
+    const [remote, people] = await Promise.all([
+      request<PaginatedChartReadings>(`/chart-readings?${params.toString()}`),
+      getPeople(),
+    ]);
+    return filterChartReadingsByPeople(remote.data, people);
   } catch {
     return status
       ? fallbackChartReadings.filter((reading) => reading.reading_status === status)
@@ -291,8 +372,14 @@ export async function getChartReadings(status: ReadingStatus | '' = ''): Promise
 
 export async function getChartReadingStats(): Promise<ChartReadingStats> {
   try {
-    const stats = await request<ChartReadingStats>('/chart-readings-stats');
-    return stats.total < fallbackChartReadingStats.total ? fallbackChartReadingStats : stats;
+    const readings = await getChartReadings();
+    return {
+      total: readings.length,
+      readable: readings.filter((reading) => reading.reading_status === 'readable').length,
+      review: readings.filter((reading) => reading.reading_status === 'review').length,
+      unclear: readings.filter((reading) => reading.reading_status === 'unclear').length,
+      promoted: readings.filter((reading) => reading.is_promoted).length,
+    };
   } catch {
     return fallbackChartReadingStats;
   }
@@ -300,8 +387,11 @@ export async function getChartReadingStats(): Promise<ChartReadingStats> {
 
 export async function getChartEdges(): Promise<ChartEdge[]> {
   try {
-    const result = await request<ChartEdgeResponse>('/chart-edges?per_page=250');
-    return result.data.length >= fallbackChartEdges.length ? result.data : fallbackChartEdges;
+    const [result, people] = await Promise.all([
+      request<ChartEdgeResponse>('/chart-edges?per_page=250'),
+      getPeople(),
+    ]);
+    return filterChartEdgesByPeople(result.data, people);
   } catch {
     return fallbackChartEdges;
   }
@@ -309,8 +399,15 @@ export async function getChartEdges(): Promise<ChartEdge[]> {
 
 export async function getChartEdgeStats(): Promise<ChartEdgeStats> {
   try {
-    const stats = await request<ChartEdgeStats>('/chart-edges-stats');
-    return stats.total >= fallbackChartEdgeStats.total ? stats : fallbackChartEdgeStats;
+    const edges = await getChartEdges();
+    return {
+      total: edges.length,
+      readable: edges.filter((edge) => edge.reading_status === 'readable').length,
+      review: edges.filter((edge) => edge.reading_status === 'review').length,
+      unclear: edges.filter((edge) => edge.reading_status === 'unclear').length,
+      confirmed: edges.filter((edge) => edge.approval_status === 'supervisor_confirmed').length,
+      pending_supervisor: edges.filter((edge) => edge.approval_status === 'pending_supervisor').length,
+    };
   } catch {
     return fallbackChartEdgeStats;
   }
