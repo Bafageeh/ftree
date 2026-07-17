@@ -32,6 +32,8 @@ class LineageController extends Controller
             ->orderBy('id')
             ->get();
 
+        $lineage->warm($allPeople);
+
         $allRecords = $allPeople->map(fn (Person $person) => [
             'person' => $person,
             'trace' => $lineage->trace($person),
