@@ -25,7 +25,19 @@ class PersonController extends Controller
             $ids = match ((string) $request->string('lineage_status')) {
                 'connected', 'connected_to_prophet' => $lineage->connectedIds($people),
                 'disconnected', 'disconnected_from_prophet' => $lineage->disconnectedIds($people),
-                default => collect(),
+                'confirmed', 'connected_to_prophet_confirmed' => $people
+                    ->filter(fn (Person $person) => $lineage->trace($person)['fully_confirmed'])
+                    ->pluck('id')
+                    ->values(),
+                'pending', 'connected_to_prophet_pending_review' => $people
+                    ->filter(function (Person $person) use ($lineage) {
+                        $trace = $lineage->trace($person);
+
+                        return $trace['connected_to_prophet'] && ! $trace['fully_confirmed'];
+                    })
+                    ->pluck('id')
+                    ->values(),
+                default => $people->pluck('id')->values(),
             };
 
             $query->whereIn('id', $ids);
@@ -72,6 +84,8 @@ class PersonController extends Controller
         return response()->json([
             'person' => new PersonResource($person),
             'connected_to_prophet' => $trace['connected_to_prophet'],
+            'fully_confirmed' => $trace['fully_confirmed'],
+            'pending_review_count' => $trace['pending_review_count'],
             'lineage_status' => $trace['status'],
             'prophet' => $trace['prophet'] ? new PersonResource($trace['prophet']) : null,
             'highest_known_ancestor' => $trace['highest_known_ancestor']
@@ -116,6 +130,7 @@ class PersonController extends Controller
                         'known_path_text' => $item['trace']['path_text'],
                         'display_path_text' => trim('محمد ﷺ ← [صلة نسب مفقودة أو غير موثقة] ← '.$item['trace']['path_text']),
                         'lineage_status' => $item['trace']['status'],
+                        'pending_review_count' => $item['trace']['pending_review_count'],
                     ])
                     ->values();
 
@@ -131,7 +146,7 @@ class PersonController extends Controller
             ->values();
 
         return response()->json([
-            'definition' => 'منقطعة النسب: كل سلسلة لا يمكن تتبع آبائها بعلاقات معتمدة حتى محمد ﷺ.',
+            'definition' => 'منقطعة النسب: كل سلسلة لا يصل مسار آبائها المسجل غير المرفوض حتى محمد ﷺ.',
             'prophet_source_code' => PropheticLineageService::PROPHET_SOURCE_CODE,
             'groups_count' => $groups->count(),
             'people_count' => $traces->count(),
@@ -144,13 +159,18 @@ class PersonController extends Controller
         $people = Person::query()
             ->where('approval_status', '!=', 'rejected')
             ->get();
-        $connected = $lineage->connectedIds($people)->count();
-        $disconnected = $people->count() - $connected;
+        $traces = $people->map(fn (Person $person) => $lineage->trace($person));
+        $connected = $traces->filter(fn (array $trace) => $trace['connected_to_prophet']);
+        $connectedConfirmed = $traces->filter(fn (array $trace) => $trace['fully_confirmed']);
+        $connectedPending = $connected->reject(fn (array $trace) => $trace['fully_confirmed']);
+        $disconnected = $traces->reject(fn (array $trace) => $trace['connected_to_prophet']);
 
         return response()->json([
             'total' => $people->count(),
-            'connected_to_prophet' => $connected,
-            'disconnected_from_prophet' => $disconnected,
+            'connected_to_prophet' => $connected->count(),
+            'connected_to_prophet_confirmed' => $connectedConfirmed->count(),
+            'connected_to_prophet_pending_review' => $connectedPending->count(),
+            'disconnected_from_prophet' => $disconnected->count(),
             'confirmed' => Person::where('approval_status', 'supervisor_confirmed')->count(),
             'pending_supervisor' => Person::where('approval_status', 'pending_supervisor')->count(),
             'readable' => Person::where('approval_status', '!=', 'rejected')->where('status', 'readable')->count(),
