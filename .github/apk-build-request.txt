@@ -1,4 +1,4 @@
-Build requested: 2026-07-16T22:00:00+03:00
+Build requested: 2026-07-17T16:10:00+03:00
 Version: 1.0.3 (4)
-Reason: Build latest reviewed genealogy, modern interactive tree, and new Ali al-Faqih branch readings
+Reason: Retry after fixing invalid YAML by moving snapshot JavaScript to a standalone script
 Artifact: Shajara-Android-Release-APK
