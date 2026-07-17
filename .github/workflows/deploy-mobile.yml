@@ -72,16 +72,23 @@ jobs:
 
           MOBILE_PATH="$APP_PATH/shajara-mobile"
           LOG_PATH="$MOBILE_PATH/expo-8083.log"
+          BUNDLE_FILE="$MOBILE_PATH/src/generated/bundledPeople.ts"
 
           test -s "$MOBILE_PATH/package.json"
           test -s "$MOBILE_PATH/app/lineage-gaps.tsx"
-          test -s "$MOBILE_PATH/src/generated/bundledPeople.ts"
-          grep -q 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
-          ! grep -q "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
-          grep -q "علوي بن محمد صاحب مرباط" "$MOBILE_PATH/src/generated/bundledPeople.ts"
-          grep -q "أحمد بن محمد الفقيه المقدم" "$MOBILE_PATH/src/generated/bundledPeople.ts"
-          grep -q "عبد الرحمن بن محمد الفقيه المقدم" "$MOBILE_PATH/src/generated/bundledPeople.ts"
-          grep -q "lineage_parent_id: 18" "$MOBILE_PATH/src/generated/bundledPeople.ts"
+          test -s "$BUNDLE_FILE"
+          grep -Fq 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
+          ! grep -Fq "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
+
+          # Verify the actual parent-child calls used by bundledPeople.ts.
+          grep -Fq "core(17, 'علي بن محمد صاحب مرباط', 'CORE-017', 16, 17" "$BUNDLE_FILE"
+          grep -Fq "core(1602, 'علوي بن محمد صاحب مرباط', 'MIRBAT-ALAWI-001', 16, 17" "$BUNDLE_FILE"
+          grep -Fq "core(19, 'علوي بن محمد الفقيه المقدم', 'CORE-019', 18, 19" "$BUNDLE_FILE"
+          grep -Fq "core(22, 'أحمد بن محمد الفقيه المقدم', 'CORE-022', 18, 19" "$BUNDLE_FILE"
+          grep -Fq "core(23, 'علي بن محمد الفقيه المقدم', 'CORE-023', 18, 19" "$BUNDLE_FILE"
+          grep -Fq "core(24, 'عبد الرحمن بن محمد الفقيه المقدم', 'CORE-024', 18, 19" "$BUNDLE_FILE"
+          grep -Fq "core(20, 'علي بن علوي بن محمد الفقيه المقدم', 'CORE-020', 19, 20" "$BUNDLE_FILE"
+          grep -Fq "core(21, 'عبد الله بن علوي بن محمد الفقيه المقدم', 'CORE-021', 19, 20" "$BUNDLE_FILE"
 
           cd "$MOBILE_PATH"
           if [[ ! -d node_modules ]]; then
