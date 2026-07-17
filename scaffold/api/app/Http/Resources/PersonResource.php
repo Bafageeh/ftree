@@ -4,11 +4,22 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PersonResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $profilePhotoUrl = null;
+
+        if ($this->profile_photo_path) {
+            $storedUrl = Storage::disk('public')->url($this->profile_photo_path);
+            $profilePhotoUrl = Str::startsWith($storedUrl, ['http://', 'https://'])
+                ? $storedUrl
+                : rtrim($request->getSchemeAndHttpHost(), '/').'/'.ltrim($storedUrl, '/');
+        }
+
         return [
             'id' => $this->id,
             'full_name' => $this->full_name,
@@ -16,6 +27,7 @@ class PersonResource extends JsonResource
             'chart_reading_id' => $this->chart_reading_id,
             'node_type' => $this->node_type,
             'honorific' => $this->honorific,
+            'gender' => $this->gender,
             'lineage_parent_id' => $this->lineage_parent_id,
             'status' => $this->status,
             'approval_status' => $this->approval_status,
@@ -26,6 +38,8 @@ class PersonResource extends JsonResource
             'chart_color' => $this->chart_color,
             'generation' => $this->generation,
             'summary' => $this->summary,
+            'general_details' => $this->general_details,
+            'profile_photo_url' => $profilePhotoUrl,
             'source_reference' => $this->source_reference,
             'source_locator' => $this->source_locator,
             'chart_order' => $this->chart_order,
