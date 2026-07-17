@@ -14,6 +14,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/people', [PersonController::class, 'index']);
     Route::get('/people/{person}', [PersonController::class, 'show']);
     Route::get('/people/{person}/lineage', [PersonController::class, 'lineage']);
+    Route::patch('/people/{person}', [PersonController::class, 'update'])->middleware('throttle:60,1');
+    Route::post('/people/{person}/children', [PersonController::class, 'addChildren'])->middleware('throttle:60,1');
+    Route::delete('/people/{person}', [PersonController::class, 'destroy'])->middleware('throttle:30,1');
     Route::post('/people/{person}/review', [SupervisorReviewController::class, 'reviewPerson'])->middleware('throttle:60,1');
 
     Route::get('/chart-readings', [ChartReadingController::class, 'index']);
