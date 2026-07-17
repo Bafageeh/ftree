@@ -73,18 +73,29 @@ jobs:
           MOBILE_PATH="$APP_PATH/shajara-mobile"
           LOG_PATH="$MOBILE_PATH/expo-8083.log"
           BUNDLE_FILE="$MOBILE_PATH/src/generated/bundledPeople.ts"
-          TREE_FILE="$MOBILE_PATH/src/components/CompletePropheticTree.tsx"
+          TREE_ENTRY="$MOBILE_PATH/src/components/GenealogyTree.tsx"
+          TREE_FILE="$MOBILE_PATH/src/components/ZoomableSvgGenealogyTree.tsx"
+          ZOOM_FILE="$MOBILE_PATH/src/components/svg-tree/TreeZoomToolbar.tsx"
+          LAYOUT_FILE="$MOBILE_PATH/src/components/svg-tree/layout.ts"
 
           test -s "$MOBILE_PATH/package.json"
           test -s "$MOBILE_PATH/app/lineage-gaps.tsx"
           test -s "$BUNDLE_FILE"
+          test -s "$TREE_ENTRY"
           test -s "$TREE_FILE"
+          test -s "$ZOOM_FILE"
+          test -s "$LAYOUT_FILE"
           grep -Fq 'Redirect href="/(tabs)/tree"' "$MOBILE_PATH/app/lineage-gaps.tsx"
           ! grep -Fq "router.push('/lineage-gaps')" "$MOBILE_PATH/app/(tabs)/review.tsx"
 
+          grep -Fq "ZoomableSvgGenealogyTree" "$TREE_ENTRY"
           grep -Fq "from 'react-native-svg'" "$TREE_FILE"
-          grep -Fq 'createTreeLayout' "$TREE_FILE"
+          grep -Fq 'MIN_ZOOM = 0.5' "$TREE_FILE"
+          grep -Fq 'MAX_ZOOM = 2' "$TREE_FILE"
+          grep -Fq 'TreeZoomToolbar' "$TREE_FILE"
+          grep -Fq 'createSvgTreeLayout' "$TREE_FILE"
           grep -Fq 'stroke="url(#branchGradient)"' "$TREE_FILE"
+          grep -Fq 'ملاءمة' "$ZOOM_FILE"
           ! grep -Fq 'setLayoutAnimationEnabledExperimental' "$TREE_FILE"
 
           grep -Fq "core(17, 'علي بن محمد صاحب مرباط', 'CORE-017', 16, 17" "$BUNDLE_FILE"
@@ -118,7 +129,7 @@ jobs:
 
           for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8083/status 2>/dev/null | grep -qi running; then
-              echo 'Shajara Expo restarted with the interactive SVG genealogy renderer.'
+              echo 'Shajara Expo restarted with zoomable SVG genealogy renderer.'
               tail -n 30 "$LOG_PATH" || true
               exit 0
             fi
