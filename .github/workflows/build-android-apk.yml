@@ -62,32 +62,10 @@ jobs:
               'https://shajara.pm.sa/api/v1/people?per_page=250' -o people.json \
               && curl --insecure -fsSL --retry 2 --connect-timeout 15 --max-time 45 \
               'https://shajara.pm.sa/api/v1/chart-edges?per_page=250' -o edges.json; then
-              if node <<'NODE'
-        const fs = require('fs');
-
-        const peoplePayload = JSON.parse(fs.readFileSync('people.json', 'utf8'));
-        const edgesPayload = JSON.parse(fs.readFileSync('edges.json', 'utf8'));
-        const people = Array.isArray(peoplePayload.data) ? peoplePayload.data : [];
-        const edges = Array.isArray(edgesPayload.data) ? edgesPayload.data : [];
-
-        if (people.length < 238 || edges.length < 9) {
-          console.error(`Snapshot incomplete: people=${people.length}, edges=${edges.length}`);
-          process.exit(1);
-        }
-
-        const peopleContent = `import type { Person } from '../types';\n\n` +
-          `// مولدة تلقائيًا من API شجرة النسب أثناء بناء APK.\n` +
-          `export const bundledPeople = ${JSON.stringify(people, null, 2)} as unknown as Person[];\n`;
-
-        const edgesContent = `import type { ChartEdge } from '../types';\n\n` +
-          `// مولدة تلقائيًا من API شجرة النسب أثناء بناء APK.\n` +
-          `export const bundledEdges = ${JSON.stringify(edges, null, 2)} as unknown as ChartEdge[];\n`;
-
-        fs.writeFileSync('shajara-mobile/src/generated/bundledPeople.ts', peopleContent);
-        fs.writeFileSync('shajara-mobile/src/generated/bundledEdges.ts', edgesContent);
-        console.log(`Bundled snapshot: people=${people.length}, edges=${edges.length}`);
-        NODE
-              then
+              if node scripts/bundle-genealogy-snapshot.js \
+                people.json \
+                edges.json \
+                shajara-mobile/src/generated; then
                 ready=1
                 break
               fi
