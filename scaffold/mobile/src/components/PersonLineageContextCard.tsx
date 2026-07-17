@@ -39,7 +39,6 @@ export function PersonLineageContextCard({ person, path }: { person: Person; pat
                 {prophet && <Text style={styles.prophetLabel}>الأصل النبوي</Text>}
                 {selected && !prophet && <Text style={styles.selectedLabel}>الشخص المختار</Text>}
                 <Text style={[styles.name, (prophet || selected) && styles.highlightedName]}>{node.full_name}</Text>
-                <Text style={[styles.code, (prophet || selected) && styles.highlightedCode]}>{node.source_code ?? `#${node.id}`}</Text>
                 <Text style={[styles.status, (prophet || selected) && styles.highlightedStatus]}>
                   {pending ? 'تحتاج اعتماد المشرف' : 'علاقة معتمدة'}
                 </Text>
@@ -84,8 +83,6 @@ const styles = StyleSheet.create({
   selectedLabel: { color: '#E8C977', fontSize: 11, fontWeight: '900', textAlign: 'center' },
   name: { color: colors.primary, fontSize: 17, fontWeight: '900', marginTop: 3, textAlign: 'center' },
   highlightedName: { color: colors.white },
-  code: { color: '#8A661E', fontSize: 10, fontWeight: '800', marginTop: 3 },
-  highlightedCode: { color: '#E8C977' },
   status: { color: colors.muted, fontSize: 10, marginTop: 4 },
   highlightedStatus: { color: '#DDE8E4' },
   note: { color: colors.text, fontSize: 12, lineHeight: 20, marginTop: 10, textAlign: 'right' },
