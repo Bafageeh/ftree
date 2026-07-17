@@ -21,6 +21,7 @@ class PersonController extends Controller
             $people = Person::query()
                 ->where('approval_status', '!=', 'rejected')
                 ->get();
+            $lineage->warm($people);
 
             $ids = match ((string) $request->string('lineage_status')) {
                 'connected', 'connected_to_prophet' => $lineage->connectedIds($people),
@@ -111,6 +112,7 @@ class PersonController extends Controller
             ->orderBy('generation')
             ->orderBy('id')
             ->get();
+        $lineage->warm($people);
 
         $traces = $people
             ->map(fn (Person $person) => ['person' => $person, 'trace' => $lineage->trace($person)])
@@ -159,6 +161,8 @@ class PersonController extends Controller
         $people = Person::query()
             ->where('approval_status', '!=', 'rejected')
             ->get();
+        $lineage->warm($people);
+
         $traces = $people->map(fn (Person $person) => $lineage->trace($person));
         $connected = $traces->filter(fn (array $trace) => $trace['connected_to_prophet']);
         $connectedConfirmed = $traces->filter(fn (array $trace) => $trace['fully_confirmed']);
