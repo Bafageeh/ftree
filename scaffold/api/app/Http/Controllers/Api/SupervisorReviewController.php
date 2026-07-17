@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PersonResource;
+use App\Models\ChartEdge;
 use App\Models\Person;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -57,5 +59,41 @@ class SupervisorReviewController extends Controller
         });
 
         return new PersonResource($person->fresh(['parent', 'children']));
+    }
+
+    public function reviewEdge(Request $request, ChartEdge $chartEdge): JsonResponse
+    {
+        $validated = $request->validate([
+            'decision' => ['required', Rule::in(['approve', 'pending', 'reject'])],
+            'reverse' => ['sometimes', 'boolean'],
+            'reading_status' => ['nullable', Rule::in(['readable', 'review', 'unclear'])],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($chartEdge, $validated): void {
+            $decision = $validated['decision'];
+            $note = trim((string) ($validated['note'] ?? ''));
+
+            if (($validated['reverse'] ?? false) === true) {
+                [$chartEdge->from_source_key, $chartEdge->to_source_key] = [
+                    $chartEdge->to_source_key,
+                    $chartEdge->from_source_key,
+                ];
+            }
+
+            $chartEdge->forceFill([
+                'reading_status' => $validated['reading_status'] ?? $chartEdge->reading_status,
+                'approval_status' => match ($decision) {
+                    'approve' => 'supervisor_confirmed',
+                    'reject' => 'rejected',
+                    default => 'pending_supervisor',
+                },
+                'notes' => $note !== ''
+                    ? trim(implode("\n", array_filter([$chartEdge->notes, 'ملاحظة المشرف: '.$note])))
+                    : $chartEdge->notes,
+            ])->save();
+        });
+
+        return response()->json(['data' => $chartEdge->fresh()]);
     }
 }
