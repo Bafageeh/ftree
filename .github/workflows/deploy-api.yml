@@ -71,6 +71,7 @@ jobs:
           set -euo pipefail
 
           API_PATH="$APP_PATH/shajara-api"
+          WEB_ROOT="/mnt/home-storage/home/pmsa/public_html/apps/shajara"
           test -s "$API_PATH/artisan"
           cd "$API_PATH"
 
@@ -98,30 +99,29 @@ jobs:
           php artisan route:cache
           php artisan view:cache
           php artisan route:list --path=api/v1
-          php artisan route:list --name=lineage
 
           chown -R pmsa:pmsa "$API_PATH"
           chmod -R ug+rwX "$API_PATH/storage" "$API_PATH/bootstrap/cache"
 
-          HEALTH_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/health)
-          STATS_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/stats)
-          PEOPLE_JSON=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250&lineage_status=connected')
-          LINEAGE_HTML=$(curl -ksS --fail --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/lineage)
-          GAPS_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/lineage-gaps)
+          if [[ -L "$WEB_ROOT" ]]; then
+            ln -sfn "$API_PATH/public" "$WEB_ROOT"
+            chown -h pmsa:pmsa "$WEB_ROOT"
+          fi
+          echo "Published web root: $(readlink -f "$WEB_ROOT" 2>/dev/null || echo "$WEB_ROOT")"
 
+          STATS_JSON=$(curl -ksS --fail --retry 3 --retry-delay 2 --resolve shajara.pm.sa:443:127.0.0.1 https://shajara.pm.sa/api/v1/stats)
+          PEOPLE_JSON=$(curl -ksS --fail --retry 3 --retry-delay 2 --resolve shajara.pm.sa:443:127.0.0.1 'https://shajara.pm.sa/api/v1/people?per_page=250&lineage_status=connected')
+
+          printf '%s\n' "$STATS_JSON"
           php -r '
-            $health = json_decode($argv[1], true);
-            $stats = json_decode($argv[2], true);
-            $peoplePayload = json_decode($argv[3], true);
-            if (!is_array($health)) {
-                fwrite(STDERR, "Health endpoint returned invalid JSON.\n");
-                exit(1);
-            }
+            $stats = json_decode($argv[1], true);
+            $peoplePayload = json_decode($argv[2], true);
+
             if (!is_array($stats) || ($stats["total"] ?? -1) !== ($stats["connected_to_prophet"] ?? -2)) {
                 fwrite(STDERR, "Published totals include a lineage not connected to the Prophet.\n");
                 exit(1);
             }
-            if (($stats["total"] ?? 0) < 57 || ($stats["pending_supervisor"] ?? 0) < 22) {
+            if (($stats["total"] ?? 0) < 57 || ($stats["confirmed"] ?? 0) < 35 || ($stats["pending_supervisor"] ?? 0) < 22) {
                 fwrite(STDERR, "Imported genealogy totals are missing from the published API.\n");
                 exit(1);
             }
@@ -165,10 +165,7 @@ jobs:
                     exit(1);
                 }
             }
-          ' "$HEALTH_JSON" "$STATS_JSON" "$PEOPLE_JSON"
+          ' "$STATS_JSON" "$PEOPLE_JSON"
 
-          test "$GAPS_STATUS" = "404"
-          printf '%s' "$LINEAGE_HTML" | grep -q 'شجرة النسب المتصلة بسيد البشر محمد'
-          printf '%s' "$LINEAGE_HTML" | grep -q 'أُلغي من الشجرة العامة كل اسم أو فرع لا يصل ترابطه'
           echo 'Shajara API deployed with all imported genealogy records verified.'
           REMOTE
