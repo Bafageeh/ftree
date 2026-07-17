@@ -24,6 +24,16 @@ class SupervisorReviewController extends Controller
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        if (
+            $validated['decision'] === 'approve'
+            && ! $this->isCanonicalRoot($person)
+            && ! $person->lineage_parent_id
+        ) {
+            throw ValidationException::withMessages([
+                'lineage_parent_id' => 'لا يمكن اعتماد اسم بلا أب. اعتمد علاقة الأب والابن أولًا من قسم العلاقات أو منقطعة النسب.',
+            ]);
+        }
+
         DB::transaction(function () use ($person, $validated): void {
             $decision = $validated['decision'];
             $fullName = trim((string) ($validated['full_name'] ?? $person->full_name));
@@ -120,6 +130,11 @@ class SupervisorReviewController extends Controller
         });
 
         return response()->json(['data' => $chartEdge->fresh()]);
+    }
+
+    private function isCanonicalRoot(Person $person): bool
+    {
+        return $person->source_code === 'CORE-001';
     }
 
     private function personForSourceKey(string $sourceKey): ?Person
