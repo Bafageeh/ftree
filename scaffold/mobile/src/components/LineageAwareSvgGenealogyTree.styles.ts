@@ -1,0 +1,37 @@
+import { StyleSheet } from 'react-native';
+
+import { colors, radius, shadow } from '../theme';
+
+export const lineageTreeStyles = StyleSheet.create({
+  flex: { flex: 1 },
+  focusBar: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 10, marginBottom: 10, padding: 10, ...shadow },
+  focusIdentity: { flex: 1 },
+  focusLabel: { color: colors.muted, fontSize: 9, textAlign: 'right' },
+  focusName: { color: colors.primary, fontSize: 14, fontWeight: '900', marginTop: 2, textAlign: 'right' },
+  focusActions: { flexDirection: 'row-reverse', gap: 6 },
+  focusButton: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.pill, flexDirection: 'row-reverse', gap: 4, minHeight: 36, paddingHorizontal: 10 },
+  focusButtonText: { color: colors.primary, fontSize: 10, fontWeight: '900' },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
+  search: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 9, marginBottom: 6, minHeight: 58, paddingHorizontal: 15, ...shadow },
+  searchInput: { color: colors.text, flex: 1, fontSize: 13 },
+  searchHint: { color: colors.muted, fontSize: 10, lineHeight: 17, marginBottom: 10, paddingHorizontal: 4, textAlign: 'right' },
+  results: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, marginBottom: 12, paddingHorizontal: 12 },
+  resultRow: { alignItems: 'center', borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row-reverse', gap: 9, paddingVertical: 10 },
+  resultName: { color: colors.primary, fontSize: 14, fontWeight: '900', textAlign: 'right' },
+  resultLineage: { color: colors.muted, fontSize: 10, marginTop: 3, textAlign: 'right' },
+  emptySearch: { color: colors.muted, paddingVertical: 18, textAlign: 'center' },
+  selectedCard: { backgroundColor: colors.goldSoft, borderColor: colors.gold, borderRadius: radius.md, borderWidth: 1, marginBottom: 13, padding: 13 },
+  selectedHeader: { alignItems: 'center', flexDirection: 'row-reverse', gap: 9 },
+  selectedLabel: { color: colors.muted, fontSize: 10, textAlign: 'right' },
+  selectedName: { color: colors.primary, fontSize: 16, fontWeight: '900', marginTop: 2, textAlign: 'right' },
+  openButton: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  openButtonText: { color: colors.white, fontSize: 10, fontWeight: '900' },
+  pathText: { color: colors.text, fontSize: 12, lineHeight: 22, marginTop: 10, textAlign: 'right' },
+  canvasShell: { backgroundColor: '#F8F5EC', borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden', ...shadow },
+  canvasContent: { alignItems: 'flex-start', justifyContent: 'center' },
+  tip: { alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, marginTop: 12, padding: 11 },
+  tipText: { color: '#765714', flex: 1, fontSize: 10, lineHeight: 18, textAlign: 'right' },
+  emptyBox: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, padding: 35 },
+  emptyTitle: { color: colors.primary, fontSize: 17, fontWeight: '900', marginTop: 10 },
+  emptyText: { color: colors.muted, fontSize: 11, lineHeight: 19, marginTop: 5, textAlign: 'center' },
+});
