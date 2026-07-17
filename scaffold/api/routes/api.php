@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ChartReadingController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\PersonController;
 use App\Http\Controllers\Api\ReviewRequestController;
+use App\Http\Controllers\Api\SupervisorReviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -13,6 +14,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/people', [PersonController::class, 'index']);
     Route::get('/people/{person}', [PersonController::class, 'show']);
     Route::get('/people/{person}/lineage', [PersonController::class, 'lineage']);
+    Route::post('/people/{person}/review', [SupervisorReviewController::class, 'reviewPerson'])
+        ->middleware('throttle:60,1');
 
     Route::get('/chart-readings', [ChartReadingController::class, 'index']);
     Route::get('/chart-readings-stats', [ChartReadingController::class, 'stats']);
