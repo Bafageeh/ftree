@@ -120,6 +120,7 @@ jobs:
             @expo/vector-icons \
             expo-constants \
             expo-router \
+            expo-image-picker \
             react-native-safe-area-context \
             react-native-svg \
             react-dom \
