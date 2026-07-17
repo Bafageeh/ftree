@@ -1,4 +1,5 @@
 import type { Person } from '../types';
+import { bundledPeopleBatch3 } from './bundledPeopleBatch3';
 
 const sourceReference = 'مشجرة أصول السادة آل باعلوي - الصفحة الوحيدة';
 
@@ -54,6 +55,8 @@ export const bundledPeople: Person[] = [
   core(2309, 'علي بن محمد جمل الليل', 'JAMAL-ALLAYL-ALI', 2305, 24, 'ali_faqih', undefined, 2309),
   core(2310, 'عبد الله بن محمد جمل الليل', 'JAMAL-ALLAYL-ABDULLAH', 2305, 24, 'ali_faqih', undefined, 2310),
   core(2311, 'أحمد بن عبد الله بن محمد جمل الليل', 'JAMAL-ALLAYL-AHMAD-BIN-ABDULLAH', 2310, 25, 'ali_faqih', 'جد آل باحسن', 2311),
+
+  ...bundledPeopleBatch3,
 ];
 
 function core(
