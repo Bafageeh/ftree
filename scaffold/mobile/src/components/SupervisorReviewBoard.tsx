@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
-import { getChartEdges, getChartReadings, getPendingPeople } from '../lib/api';
+import { getChartEdges, getChartReadings, getPendingPeople, getPeople } from '../lib/api';
 import { colors, radius, shadow } from '../theme';
 import type { ChartEdge, ChartReading, Person } from '../types';
 import { SupervisorEdgeReviewCard } from './SupervisorEdgeReviewCard';
@@ -16,33 +16,64 @@ export function SupervisorReviewBoard() {
   const [readings, setReadings] = useState<ChartReading[]>([]);
   const [edges, setEdges] = useState<ChartEdge[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [allPeople, setAllPeople] = useState<Person[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (refresh = false) => {
     setRefreshing(refresh);
-    const [nextReadings, nextEdges, nextPeople] = await Promise.all([
-      getChartReadings(), getChartEdges(), getPendingPeople(),
+    const [nextReadings, nextEdges, nextPeople, nextAllPeople] = await Promise.all([
+      getChartReadings(), getChartEdges(), getPendingPeople(), getPeople(),
     ]);
     setReadings(nextReadings);
     setEdges(nextEdges.filter((edge) => edge.approval_status === 'pending_supervisor'));
     setPeople(nextPeople);
+    setAllPeople(nextAllPeople);
     setRefreshing(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  const peopleById = useMemo(
+    () => new Map(allPeople.map((person) => [person.id, person])),
+    [allPeople],
+  );
+
+  const peopleBySource = useMemo(() => {
+    const map = new Map<string, Person>();
+    allPeople.forEach((person) => {
+      if (person.source_code) map.set(person.source_code, person);
+    });
+    readings.forEach((reading) => {
+      const person = reading.person_id ? peopleById.get(reading.person_id) : undefined;
+      if (person) map.set(reading.source_key, person);
+    });
+    return map;
+  }, [allPeople, peopleById, readings]);
+
+  const childrenByParentId = useMemo(() => {
+    const map = new Map<number, Person[]>();
+    allPeople.forEach((person) => {
+      if (!person.lineage_parent_id) return;
+      const list = map.get(person.lineage_parent_id) ?? [];
+      list.push(person);
+      map.set(person.lineage_parent_id, list);
+    });
+    return map;
+  }, [allPeople]);
+
   const names = useMemo(() => {
     const map = new Map<string, string>();
     readings.forEach((item) => map.set(item.source_key, item.provisional_name));
-    people.forEach((item) => item.source_code && map.set(item.source_code, item.full_name));
+    allPeople.forEach((item) => item.source_code && map.set(item.source_code, item.full_name));
     return map;
-  }, [people, readings]);
+  }, [allPeople, readings]);
 
   const onEdgeReviewed = useCallback((updated: ChartEdge) => {
     setEdges((current) => updated.approval_status === 'pending_supervisor'
       ? current.map((edge) => edge.id === updated.id ? updated : edge)
       : current.filter((edge) => edge.id !== updated.id));
-  }, []);
+    if (updated.approval_status === 'supervisor_confirmed') load(false);
+  }, [load]);
 
   const data: Item[] = mode === 'readings' ? readings : mode === 'edges' ? edges : people;
 
@@ -76,7 +107,14 @@ export function SupervisorReviewBoard() {
       renderItem={({ item }) => mode === 'readings'
         ? <ReadingCard item={item as ChartReading} />
         : mode === 'edges'
-          ? <SupervisorEdgeReviewCard item={item as ChartEdge} names={names} onReviewed={onEdgeReviewed} />
+          ? <SupervisorEdgeReviewCard
+              item={item as ChartEdge}
+              names={names}
+              peopleById={peopleById}
+              peopleBySource={peopleBySource}
+              childrenByParentId={childrenByParentId}
+              onReviewed={onEdgeReviewed}
+            />
           : <PersonReviewCard item={item as Person} />}
       ListEmptyComponent={<Text style={styles.empty}>لا توجد عناصر في هذا القسم.</Text>}
     />
