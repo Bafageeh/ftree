@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>صلة النسب بالنبي ﷺ</title>
+    <title>شجرة النسب المتصلة بالنبي ﷺ</title>
     <style>
         :root {
             color-scheme: light;
@@ -15,8 +15,6 @@
             --gold-soft: #f8efd9;
             --text: #2b2b2b;
             --muted: #6f746f;
-            --danger: #a43e3e;
-            --danger-soft: #fae9e9;
             --success: #24734e;
             --success-soft: #e6f4ec;
             --warning: #956515;
@@ -41,8 +39,8 @@
             box-shadow: var(--shadow);
         }
         .hero h1 { margin: 0; font-size: clamp(25px, 5vw, 42px); }
-        .hero p { margin: 10px 0 0; line-height: 1.9; color: #dce9e5; max-width: 850px; }
-        .definition {
+        .hero p { margin: 10px 0 0; line-height: 1.9; color: #dce9e5; max-width: 900px; }
+        .policy {
             margin-top: 16px;
             padding: 14px 16px;
             border: 1px solid rgba(255,255,255,.2);
@@ -50,7 +48,7 @@
             background: rgba(255,255,255,.08);
             line-height: 1.8;
         }
-        .stats { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin: 18px 0; }
+        .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin: 18px 0; }
         .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 17px; box-shadow: var(--shadow); }
         .stat strong { display: block; font-size: 27px; color: var(--primary); }
         .stat span { color: var(--muted); font-size: 13px; }
@@ -72,7 +70,6 @@
         .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 900; }
         .badge.confirmed { background: var(--success-soft); color: var(--success); }
         .badge.pending { background: var(--warning-soft); color: var(--warning); }
-        .badge.disconnected { background: var(--danger-soft); color: var(--danger); }
         .chain { margin-top: 22px; display: flex; flex-direction: column; align-items: stretch; }
         .node { width: min(620px,100%); margin: 0 auto; background: white; border: 1px solid var(--line); border-radius: 18px; padding: 15px 17px; text-align: center; }
         .node.prophet { background: var(--primary); border-color: var(--primary); color: white; }
@@ -82,7 +79,6 @@
         .node.prophet .node-code { color: #d4e2df; }
         .node-status { margin-top: 7px; font-size: 11px; color: var(--muted); }
         .arrow { text-align: center; color: var(--gold); font-size: 27px; line-height: 36px; font-weight: 900; }
-        .gap { width: min(660px,100%); margin: 2px auto; padding: 15px; text-align: center; border: 2px dashed #d69b9b; border-radius: 18px; background: var(--danger-soft); color: var(--danger); font-weight: 900; line-height: 1.8; }
         .known-note { background: var(--gold-soft); border: 1px solid #dec58b; border-radius: 15px; margin-top: 18px; padding: 13px; color: #71531e; line-height: 1.8; }
         .records { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 13px; }
         .person-card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 19px; padding: 16px; min-height: 180px; box-shadow: 0 8px 20px rgba(38,45,41,.05); }
@@ -93,13 +89,12 @@
         .empty { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 28px; text-align: center; color: var(--muted); }
         .back-link { display: inline-flex; margin-bottom: 14px; color: var(--primary); font-weight: 800; }
         @media (max-width: 900px) {
-            .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
             .records { grid-template-columns: repeat(2, minmax(0,1fr)); }
         }
         @media (max-width: 640px) {
             .page { width: min(100% - 18px,1180px); padding-top: 10px; }
             .hero { padding: 21px 17px; border-radius: 20px; }
-            .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .stats { grid-template-columns: 1fr; gap: 8px; }
             .stat { padding: 13px; }
             .filter-grid, .records { grid-template-columns: 1fr; }
             .selected-panel { padding: 16px; }
@@ -110,35 +105,31 @@
 <body>
 <div class="page">
     <section class="hero">
-        <h1>صلة النسب بالنبي محمد ﷺ</h1>
-        <p>يعرض النظام سلسلة الآباء من محمد ﷺ إلى الشخص المختار. ولا تُعد السلسلة متصلة لمجرد وجود أب مباشر؛ بل يجب أن يستمر الترابط حتى الجذر النبوي.</p>
-        <div class="definition"><strong>تعريف منقطعة النسب:</strong> كل سلسلة لا يصل مسار آبائها المسجل إلى محمد ﷺ. عند الانقطاع يظهر موضع الحلقة المفقودة، ثم تُعرض السلسلة المعروفة بعد ذلك من غير اختلاق اسم أو علاقة.</div>
+        <h1>شجرة النسب المتصلة بسيد البشر محمد ﷺ</h1>
+        <p>يعرض النظام فقط الأسماء التي يمتد مسار آبائها المسجل حتى محمد ﷺ، مع إظهار كل حلقة في سلسلة النسب من الجذر النبوي إلى الشخص المختار.</p>
+        <div class="policy"><strong>سياسة العرض:</strong> أُلغي من الشجرة العامة كل اسم أو فرع لا يصل ترابطه إلى محمد ﷺ. ولا يعود إلى العرض إلا بعد إثبات العلاقة وربطه بالسلسلة النبوية.</div>
     </section>
 
     <section class="stats">
-        <div class="stat"><strong>{{ number_format($counts['total']) }}</strong><span>إجمالي الأسماء</span></div>
-        <div class="stat"><strong>{{ number_format($counts['connected']) }}</strong><span>متصلون بالنبي ﷺ</span></div>
-        <div class="stat"><strong>{{ number_format($counts['confirmed']) }}</strong><span>متصلون ومعتمدون</span></div>
+        <div class="stat"><strong>{{ number_format($counts['total']) }}</strong><span>إجمالي الأسماء المتصلة بالنبي ﷺ</span></div>
+        <div class="stat"><strong>{{ number_format($counts['confirmed']) }}</strong><span>متصلون ومعتمدون بالكامل</span></div>
         <div class="stat"><strong>{{ number_format($counts['pending']) }}</strong><span>متصلون ويحتاجون مراجعة</span></div>
-        <div class="stat"><strong>{{ number_format($counts['disconnected']) }}</strong><span>منقطعة النسب</span></div>
     </section>
 
     <form class="filters" method="get" action="{{ route('lineage.index') }}">
         <div class="filter-grid">
             <input type="search" name="search" value="{{ $search }}" placeholder="ابحث بالاسم أو الرمز أو موضعه في المشجرة">
             <select name="lineage_status">
-                <option value="all" @selected($status === 'all')>جميع الأسماء</option>
-                <option value="connected" @selected($status === 'connected')>المتصلون بالنبي ﷺ</option>
+                <option value="all" @selected($status === 'all' || $status === 'connected')>جميع المتصلين بالنبي ﷺ</option>
                 <option value="confirmed" @selected($status === 'confirmed')>المتصلون المعتمدون</option>
                 <option value="pending" @selected($status === 'pending')>المتصلون بانتظار المراجعة</option>
-                <option value="disconnected" @selected($status === 'disconnected')>منقطعة النسب</option>
             </select>
             <button type="submit">تطبيق</button>
         </div>
     </form>
 
     @if($selected && $selectedTrace)
-        <h2 class="section-title">مسار النسب الكامل</h2>
+        <h2 class="section-title">مسار النسب الكامل حتى النبي ﷺ</h2>
         <section class="selected-panel">
             <a class="back-link" href="{{ route('lineage.index', ['search' => $search, 'lineage_status' => $status]) }}">← الرجوع إلى القائمة</a>
             <div class="selected-head">
@@ -151,55 +142,33 @@
                 </div>
                 @if($selectedTrace['fully_confirmed'])
                     <span class="badge confirmed">متصل بالنبي ﷺ ومعتمد</span>
-                @elseif($selectedTrace['connected_to_prophet'])
-                    <span class="badge pending">متصل بالنبي ﷺ ويحتاج مراجعة</span>
                 @else
-                    <span class="badge disconnected">منقطعة النسب عن النبي ﷺ</span>
+                    <span class="badge pending">متصل بالنبي ﷺ ويحتاج مراجعة</span>
                 @endif
             </div>
 
-            @if($selectedTrace['connected_to_prophet'])
-                <div class="chain">
-                    @foreach($selectedTrace['path'] as $node)
-                        <div class="node {{ $node->source_code === 'CORE-001' ? 'prophet' : ($node->approval_status !== 'supervisor_confirmed' ? 'pending' : '') }}">
-                            <div class="node-name">{{ $node->full_name }}</div>
-                            <div class="node-code">{{ $node->source_code ?: 'بلا رمز' }}</div>
-                            <div class="node-status">
-                                {{ $node->approval_status === 'supervisor_confirmed' ? 'علاقة معتمدة' : 'تحتاج اعتماد المشرف' }}
-                            </div>
+            <div class="chain">
+                @foreach($selectedTrace['path'] as $node)
+                    <div class="node {{ $node->source_code === 'CORE-001' ? 'prophet' : ($node->approval_status !== 'supervisor_confirmed' ? 'pending' : '') }}">
+                        <div class="node-name">{{ $node->full_name }}</div>
+                        <div class="node-code">{{ $node->source_code ?: 'بلا رمز' }}</div>
+                        <div class="node-status">
+                            {{ $node->approval_status === 'supervisor_confirmed' ? 'علاقة معتمدة' : 'تحتاج اعتماد المشرف' }}
                         </div>
-                        @unless($loop->last)<div class="arrow">↓</div>@endunless
-                    @endforeach
-                </div>
-                @if(!$selectedTrace['fully_confirmed'])
-                    <div class="known-note">المسار يصل إلى محمد ﷺ، لكن توجد {{ number_format($selectedTrace['pending_review_count']) }} عقدة أو علاقة ما زالت بحاجة إلى اعتماد المشرف قبل وصف السلسلة بأنها موثقة بالكامل.</div>
-                @endif
-            @else
-                <div class="chain">
-                    <div class="node prophet">
-                        <div class="node-name">محمد ﷺ</div>
-                        <div class="node-code">CORE-001 · الجذر النبوي</div>
                     </div>
-                    <div class="arrow">↓</div>
-                    <div class="gap">صلة نسب مفقودة أو غير موثقة<br>لا يوجد مسار آباء متصل حتى أعلى جد معروف</div>
-                    <div class="arrow">↓</div>
-                    @foreach($selectedTrace['path'] as $node)
-                        <div class="node {{ $node->approval_status !== 'supervisor_confirmed' ? 'pending' : '' }}">
-                            <div class="node-name">{{ $node->full_name }}</div>
-                            <div class="node-code">{{ $node->source_code ?: 'بلا رمز' }}</div>
-                            <div class="node-status">{{ $node->approval_status === 'supervisor_confirmed' ? 'اسم معتمد' : 'يحتاج اعتماد المشرف' }}</div>
-                        </div>
-                        @unless($loop->last)<div class="arrow">↓</div>@endunless
-                    @endforeach
-                </div>
-                <div class="known-note">أعلى جد معروف في هذه السلسلة هو: <strong>{{ optional($selectedTrace['highest_known_ancestor'])->full_name ?: 'غير محدد' }}</strong>. المطلوب لإغلاق الانقطاع هو إثبات أبيه وربطه بالسلسلة التي تصل إلى محمد ﷺ.</div>
+                    @unless($loop->last)<div class="arrow">↓</div>@endunless
+                @endforeach
+            </div>
+
+            @if(!$selectedTrace['fully_confirmed'])
+                <div class="known-note">المسار يصل إلى محمد ﷺ، لكن توجد {{ number_format($selectedTrace['pending_review_count']) }} عقدة أو علاقة ما زالت بحاجة إلى اعتماد المشرف قبل وصف السلسلة بأنها موثقة بالكامل.</div>
             @endif
         </section>
     @endif
 
-    <h2 class="section-title">الأسماء ودرجة اتصالها</h2>
+    <h2 class="section-title">الأسماء المتصلة بالنبي ﷺ</h2>
     @if($records->isEmpty())
-        <div class="empty">لا توجد نتائج مطابقة للبحث أو الفلتر المحدد.</div>
+        <div class="empty">لا توجد نتائج مطابقة ضمن الأنساب المتصلة بالنبي ﷺ.</div>
     @else
         <section class="records">
             @foreach($records as $record)
@@ -210,21 +179,16 @@
                     <div class="status-line">
                         @if($trace['fully_confirmed'])
                             <span class="badge confirmed">متصل ومعتمد</span>
-                        @elseif($trace['connected_to_prophet'])
-                            <span class="badge pending">متصل بانتظار المراجعة</span>
                         @else
-                            <span class="badge disconnected">منقطعة النسب</span>
+                            <span class="badge pending">متصل بانتظار المراجعة</span>
                         @endif
                     </div>
                     <div class="details">
                         الرمز: {{ $person->source_code ?: 'غير محدد' }}<br>
-                        عدد الروابط المعروفة: {{ number_format($trace['relation_count']) }}<br>
-                        @if(!$trace['connected_to_prophet'])
-                            أعلى جد معروف: {{ optional($trace['highest_known_ancestor'])->full_name ?: 'غير محدد' }}<br>
-                        @endif
+                        عدد روابط النسب حتى النبي ﷺ: {{ number_format($trace['relation_count']) }}<br>
                         @if($person->source_locator)الموضع: {{ $person->source_locator }}@endif
                     </div>
-                    <a class="open-link" href="{{ route('lineage.show', $person) }}">عرض الترابط حتى النبي ﷺ</a>
+                    <a class="open-link" href="{{ route('lineage.show', $person) }}">عرض الترابط من محمد ﷺ</a>
                 </article>
             @endforeach
         </section>
