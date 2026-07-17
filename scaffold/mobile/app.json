@@ -2,27 +2,35 @@
   "expo": {
     "name": "شجرة النسب الشريف",
     "slug": "shajara",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "scheme": "shajara",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F1E7"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sa.pm.shajara"
     },
     "android": {
       "package": "sa.pm.shajara",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
-        "backgroundColor": "#F5F1E7"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#123E2A"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router"
