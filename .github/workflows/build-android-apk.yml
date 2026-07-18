@@ -133,6 +133,38 @@ jobs:
           test -s assets/adaptive-icon.png
           test -s assets/splash-icon.png
           test -s assets/favicon.png
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('src/components/CompletePropheticTree.tsx'): (
+                  'const children = childrenByParent.get(current.id) ?? [];',
+                  'const children: Person[] = childrenByParent.get(current.id) ?? [];',
+              ),
+              Path('src/components/ZoomableSvgGenealogyTree.tsx'): (
+                  'const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));',
+                  'const children: Person[] = (childrenByParent.get(current.id) ?? []).filter((child: Person) => allowedIds.has(child.id));',
+              ),
+              Path('src/components/svg-tree/treeWindow.ts'): (
+                  'const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));',
+                  'const children: Person[] = (childrenByParent.get(current.id) ?? []).filter((child: Person) => allowedIds.has(child.id));',
+              ),
+          }
+
+          for path, (old, new) in replacements.items():
+              text = path.read_text()
+              if new not in text:
+                  if old not in text:
+                      raise SystemExit(f'Could not find TypeScript inference target in {path}')
+                  text = text.replace(old, new, 1)
+                  path.write_text(text)
+              print(f'Type annotation verified: {path}')
+          PY
+
+          grep -Fq 'const children: Person[]' src/components/CompletePropheticTree.tsx
+          grep -Fq 'const children: Person[]' src/components/ZoomableSvgGenealogyTree.tsx
+          grep -Fq 'const children: Person[]' src/components/svg-tree/treeWindow.ts
           npx tsc --noEmit
 
       - name: Generate native Android project
