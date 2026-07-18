@@ -1,5 +1,5 @@
-Build requested: 2026-07-18T00:43:00+03:00
-Version: 1.0.5 (6)
-Reason: Include the latest genealogy tree, profile details, photo upload, and tree-first navigation
+Build requested: 2026-07-18T21:55:00+03:00
+Version: 1.0.6 (7)
+Reason: Prevent the Android APK from closing when a genealogy search result is selected; load only the focused branch and direct children
 Artifact: Shajara-Android-Release-APK
 Build method: GitHub Actions Gradle release; no EAS build credits
