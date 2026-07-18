@@ -5,17 +5,21 @@ export type GenerationWindow = {
   depthById: Map<number, number>;
 };
 
+const DEFAULT_MAX_WINDOW_NODES = 80;
+const DEFAULT_MAX_EXPANDED_NODES = 36;
+
 export function collectGenerationWindow(
   root: Person,
   childrenByParent: Map<number, Person[]>,
   allowedIds: Set<number>,
   maxGenerations: number,
+  maxNodes = DEFAULT_MAX_WINDOW_NODES,
 ): GenerationWindow {
   const ids = new Set<number>();
   const depthById = new Map<number, number>();
   const byId = peopleById(childrenByParent);
 
-  // أظهر الأب والأجداد حتى الجد الخامس في بطاقة الشجرة.
+  // اعرض الأب والأجداد حتى الجد الخامس، من دون فتح فروع الإخوة والأعمام.
   let ancestor: Person | undefined = root;
   for (let index = 0; index < 5; index += 1) {
     if (!ancestor.lineage_parent_id) break;
@@ -27,31 +31,49 @@ export function collectGenerationWindow(
   }
 
   const visited = new Set<number>();
-  const visit = (person: Person, depth: number) => {
-    if (depth >= maxGenerations || visited.has(person.id) || !allowedIds.has(person.id)) return;
+  const queue: Array<{ person: Person; depth: number }> = [{ person: root, depth: 0 }];
+
+  while (queue.length > 0 && ids.size < maxNodes) {
+    const entry = queue.shift();
+    if (!entry) break;
+    const { person, depth } = entry;
+
+    if (depth >= maxGenerations || visited.has(person.id) || !allowedIds.has(person.id)) continue;
     visited.add(person.id);
     ids.add(person.id);
     depthById.set(person.id, depth);
-    if (depth === maxGenerations - 1) return;
-    (childrenByParent.get(person.id) ?? []).forEach((child) => visit(child, depth + 1));
-  };
 
-  visit(root, 0);
+    if (depth === maxGenerations - 1) continue;
+    const children: Person[] = (childrenByParent.get(person.id) ?? [])
+      .filter((child: Person) => allowedIds.has(child.id));
+
+    for (const child of children) {
+      if (ids.size + queue.length >= maxNodes) break;
+      queue.push({ person: child, depth: depth + 1 });
+    }
+  }
+
   return { ids, depthById };
 }
 
-export function collectExpandableIds(
+/**
+ * الفتح الآمن عند اختيار نتيجة من البحث:
+ * - يفتح مسار الأجداد حتى الجد الخامس.
+ * - يفتح الشخص المختار لإظهار أبنائه المباشرين فقط.
+ * - لا يفتح كل الأحفاد دفعة واحدة، لأن ذلك قد ينتج لوحة عريضة جدًا
+ *   ويؤدي إلى إغلاق تطبيق Android بسبب استهلاك الذاكرة.
+ */
+export function collectFocusedExpandedIds(
   root: Person,
   childrenByParent: Map<number, Person[]>,
   allowedIds: Set<number>,
-  maxGenerations: number,
+  maxAncestors = 5,
 ): Set<number> {
   const expanded = new Set<number>();
   const byId = peopleById(childrenByParent);
-
-  // افتح مسار الأجداد كي يصل الرسم إلى الشخص المختار.
   let ancestor: Person | undefined = root;
-  for (let index = 0; index < 5; index += 1) {
+
+  for (let index = 0; index < maxAncestors; index += 1) {
     if (!ancestor.lineage_parent_id) break;
     const parent = byId.get(ancestor.lineage_parent_id);
     if (!parent || !allowedIds.has(parent.id)) break;
@@ -59,17 +81,43 @@ export function collectExpandableIds(
     ancestor = parent;
   }
 
-  const visited = new Set<number>();
-  const visit = (person: Person, depth: number) => {
-    if (depth >= maxGenerations - 1 || visited.has(person.id) || !allowedIds.has(person.id)) return;
-    visited.add(person.id);
-    const children = (childrenByParent.get(person.id) ?? []).filter((child) => allowedIds.has(child.id));
-    if (!children.length) return;
-    expanded.add(person.id);
-    children.forEach((child) => visit(child, depth + 1));
-  };
+  const directChildren: Person[] = (childrenByParent.get(root.id) ?? [])
+    .filter((child: Person) => allowedIds.has(child.id));
+  if (directChildren.length > 0) expanded.add(root.id);
 
-  visit(root, 0);
+  return expanded;
+}
+
+export function collectExpandableIds(
+  root: Person,
+  childrenByParent: Map<number, Person[]>,
+  allowedIds: Set<number>,
+  maxGenerations: number,
+  maxExpandedNodes = DEFAULT_MAX_EXPANDED_NODES,
+): Set<number> {
+  const expanded = collectFocusedExpandedIds(root, childrenByParent, allowedIds, 5);
+  const visited = new Set<number>();
+  const queue: Array<{ person: Person; depth: number }> = [{ person: root, depth: 0 }];
+
+  while (queue.length > 0 && expanded.size < maxExpandedNodes) {
+    const entry = queue.shift();
+    if (!entry) break;
+    const { person, depth } = entry;
+
+    if (depth >= maxGenerations - 1 || visited.has(person.id) || !allowedIds.has(person.id)) continue;
+    visited.add(person.id);
+
+    const children: Person[] = (childrenByParent.get(person.id) ?? [])
+      .filter((child: Person) => allowedIds.has(child.id));
+    if (children.length === 0) continue;
+
+    expanded.add(person.id);
+    for (const child of children) {
+      if (expanded.size + queue.length >= maxExpandedNodes) break;
+      queue.push({ person: child, depth: depth + 1 });
+    }
+  }
+
   return expanded;
 }
 
@@ -86,7 +134,8 @@ export function defaultExpandedPath(
 
   while (current && depth < maxGenerations - 1 && !visited.has(current.id)) {
     visited.add(current.id);
-    const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));
+    const children: Person[] = (childrenByParent.get(current.id) ?? [])
+      .filter((child: Person) => allowedIds.has(child.id));
     if (!children.length) break;
     expanded.add(current.id);
     if (children.length !== 1) break;
