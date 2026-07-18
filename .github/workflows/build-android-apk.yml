@@ -110,7 +110,7 @@ jobs:
           grep -q "import { bundledEdges }" shajara-mobile/src/lib/api.ts
           grep -q 'staticFallbackChartEdges' shajara-mobile/src/lib/api.ts
 
-      - name: Install Expo dependencies and generate official icon
+      - name: Install Expo dependencies and verify crash fix
         working-directory: shajara-mobile
         shell: bash
         run: |
@@ -136,35 +136,42 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          replacements = {
-              Path('src/components/CompletePropheticTree.tsx'): (
-                  'const children = childrenByParent.get(current.id) ?? [];',
+          targets = [
+              (
+                  Path('src/components/CompletePropheticTree.tsx'),
+                  re.compile(r'const children\s*=\s*childrenByParent\.get\(current\.id\) \?\? \[\];'),
                   'const children: Person[] = childrenByParent.get(current.id) ?? [];',
               ),
-              Path('src/components/ZoomableSvgGenealogyTree.tsx'): (
-                  'const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));',
+              (
+                  Path('src/components/ZoomableSvgGenealogyTree.tsx'),
+                  re.compile(
+                      r'const children\s*=\s*\(childrenByParent\.get\(current\.id\) \?\? \[\]\)'
+                      r'\.filter\(\(child\) => allowedIds\.has\(child\.id\)\);'
+                  ),
                   'const children: Person[] = (childrenByParent.get(current.id) ?? []).filter((child: Person) => allowedIds.has(child.id));',
               ),
-              Path('src/components/svg-tree/treeWindow.ts'): (
-                  'const children = (childrenByParent.get(current.id) ?? []).filter((child) => allowedIds.has(child.id));',
-                  'const children: Person[] = (childrenByParent.get(current.id) ?? []).filter((child: Person) => allowedIds.has(child.id));',
-              ),
-          }
+          ]
 
-          for path, (old, new) in replacements.items():
+          for path, pattern, replacement in targets:
               text = path.read_text()
-              if new not in text:
-                  if old not in text:
-                      raise SystemExit(f'Could not find TypeScript inference target in {path}')
-                  text = text.replace(old, new, 1)
+              if 'const children: Person[]' not in text:
+                  text, count = pattern.subn(replacement, text, count=1)
+                  if count != 1:
+                      raise SystemExit(f'Could not add TypeScript annotation in {path}')
                   path.write_text(text)
               print(f'Type annotation verified: {path}')
           PY
 
           grep -Fq 'const children: Person[]' src/components/CompletePropheticTree.tsx
           grep -Fq 'const children: Person[]' src/components/ZoomableSvgGenealogyTree.tsx
-          grep -Fq 'const children: Person[]' src/components/svg-tree/treeWindow.ts
+          grep -Fq 'collectFocusedExpandedIds' src/components/svg-tree/treeWindow.ts
+          grep -Fq 'maxWindowNodes = 60' src/components/LineageAwareSvgGenealogyTree.tsx
+          grep -Fq "setQuery('')" src/components/LineageAwareSvgGenealogyTree.tsx
+          grep -Fq 'TreeErrorBoundary' src/components/GenealogyTree.tsx
+          grep -Fq 'version": "1.0.6"' app.json
+          grep -Fq 'versionCode": 7' app.json
           npx tsc --noEmit
 
       - name: Generate native Android project
