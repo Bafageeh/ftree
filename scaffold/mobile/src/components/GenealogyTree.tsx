@@ -1,6 +1,10 @@
+import { Component, type ErrorInfo, type ReactNode, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { colors, radius } from '../theme';
+import type { ChartEdge, Person } from '../types';
 import { LineageAwareSvgGenealogyTree } from './LineageAwareSvgGenealogyTree';
 import type { TreeStatusFilter } from './ModernGenealogyTree';
-import type { ChartEdge, Person } from '../types';
 
 type Props = {
   people: Person[];
@@ -9,11 +13,64 @@ type Props = {
   statusFilter?: TreeStatusFilter;
 };
 
+type BoundaryProps = {
+  children: ReactNode;
+  resetKey: number;
+  onReset: () => void;
+};
+
+type BoundaryState = {
+  failed: boolean;
+};
+
 const MIRBAT_CODE = 'CORE-016';
 const ALAWI_MIRBAT_CODE = 'MIRBAT-ALAWI-001';
 
 export function GenealogyTree(props: Props) {
-  return <LineageAwareSvgGenealogyTree {...props} people={withVerifiedMirbatChildren(props.people)} />;
+  const [resetKey, setResetKey] = useState(0);
+  const verifiedPeople = useMemo(() => withVerifiedMirbatChildren(props.people), [props.people]);
+
+  return (
+    <TreeErrorBoundary resetKey={resetKey} onReset={() => setResetKey((value) => value + 1)}>
+      <LineageAwareSvgGenealogyTree
+        key={resetKey}
+        {...props}
+        people={verifiedPeople}
+      />
+    </TreeErrorBoundary>
+  );
+}
+
+class TreeErrorBoundary extends Component<BoundaryProps, BoundaryState> {
+  state: BoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): BoundaryState {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Genealogy tree render failed', error, info.componentStack);
+  }
+
+  componentDidUpdate(previousProps: BoundaryProps) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.failed) {
+      this.setState({ failed: false });
+    }
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+
+    return (
+      <View style={styles.fallback}>
+        <Text style={styles.fallbackTitle}>تعذر فتح هذا الفرع كاملًا</Text>
+        <Text style={styles.fallbackText}>تم منع إغلاق التطبيق. أعد عرض الشجرة من الأصل ثم افتح الأبناء تدريجيًا.</Text>
+        <Pressable onPress={this.props.onReset} style={styles.resetButton}>
+          <Text style={styles.resetButtonText}>العودة إلى أصل الشجرة</Text>
+        </Pressable>
+      </View>
+    );
+  }
 }
 
 function withVerifiedMirbatChildren(source: Person[]): Person[] {
@@ -57,5 +114,42 @@ function withVerifiedMirbatChildren(source: Person[]): Person[] {
 
   return [...corrected, alawi];
 }
+
+const styles = StyleSheet.create({
+  fallback: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.gold,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 24,
+  },
+  fallbackTitle: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  fallbackText: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  resetButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    marginTop: 16,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  resetButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+});
 
 export type { TreeStatusFilter };
