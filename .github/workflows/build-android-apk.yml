@@ -84,31 +84,31 @@ jobs:
           text = path.read_text()
           people_import = "import { bundledPeople } from '../generated/bundledPeople';"
           edge_import = "import { bundledEdges } from '../generated/bundledEdges';"
-          if edge_import not in text:
-              text = text.replace(people_import, people_import + "\n" + edge_import)
 
-          text = text.replace(
-              'const fallbackChartEdges: ChartEdge[] = [',
-              'const staticFallbackChartEdges: ChartEdge[] = [',
-              1,
+          if edge_import not in text:
+              if people_import not in text:
+                  raise SystemExit('Could not find bundledPeople import in api.ts')
+              text = text.replace(people_import, people_import + "\n" + edge_import, 1)
+
+          old_fallback = 'const fallbackChartEdges = filterChartEdgesByPeople(rawFallbackChartEdges, fallbackPeople);'
+          new_fallback = (
+              'const staticFallbackChartEdges = filterChartEdgesByPeople(rawFallbackChartEdges, fallbackPeople);\n'
+              'const fallbackChartEdges = bundledEdges.length > staticFallbackChartEdges.length '
+              '? bundledEdges : staticFallbackChartEdges;'
           )
-          marker = '\n];\n\nconst fallbackChartEdgeStats: ChartEdgeStats = {'
-          replacement = (
-              '\n];\n\n'
-              'const fallbackChartEdges: ChartEdge[] = bundledEdges.length >= staticFallbackChartEdges.length '
-              '? bundledEdges : staticFallbackChartEdges;\n\n'
-              'const fallbackChartEdgeStats: ChartEdgeStats = {'
-          )
-          if 'const fallbackChartEdges: ChartEdge[] = bundledEdges.length' not in text:
-              if marker not in text:
-                  raise SystemExit('Could not patch chart-edge fallback in api.ts')
-              text = text.replace(marker, replacement, 1)
+
+          if new_fallback not in text:
+              if old_fallback not in text:
+                  raise SystemExit('Could not find current chart-edge fallback declaration in api.ts')
+              text = text.replace(old_fallback, new_fallback, 1)
 
           path.write_text(text)
           PY
 
           grep -q 'bundledPeople' shajara-mobile/src/generated/bundledPeople.ts
           grep -q 'bundledEdges' shajara-mobile/src/generated/bundledEdges.ts
+          grep -q "import { bundledEdges }" shajara-mobile/src/lib/api.ts
+          grep -q 'staticFallbackChartEdges' shajara-mobile/src/lib/api.ts
 
       - name: Install Expo dependencies and generate official icon
         working-directory: shajara-mobile
