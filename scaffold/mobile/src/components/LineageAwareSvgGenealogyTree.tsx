@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { formatLineageSearchPath, searchPeopleByLineage } from '../lib/lineageSearch';
@@ -14,6 +14,7 @@ import { TreeNodeCard } from './svg-tree/TreeNodeCard';
 import { TreeZoomToolbar } from './svg-tree/TreeZoomToolbar';
 import {
   collectExpandableIds,
+  collectFocusedExpandedIds,
   collectGenerationWindow,
   defaultExpandedPath,
   pathToRoot,
@@ -28,7 +29,9 @@ type Props = {
 
 const rootCode = 'CORE-001';
 const maxGenerations = 5;
-const minZoom = 0.5;
+const maxWindowNodes = 60;
+const maxExpandedNodes = 36;
+const minZoom = 0.25;
 const maxZoom = 2;
 const zoomStep = 0.15;
 
@@ -84,7 +87,13 @@ export function LineageAwareSvgGenealogyTree({
   }, [focusedRootId, graph]);
 
   const window = useMemo(() => focusedRoot
-    ? collectGenerationWindow(focusedRoot, graph.childrenByParent, visibleIds, maxGenerations)
+    ? collectGenerationWindow(
+      focusedRoot,
+      graph.childrenByParent,
+      visibleIds,
+      maxGenerations,
+      maxWindowNodes,
+    )
     : { ids: new Set<number>(), depthById: new Map<number, number>() },
   [focusedRoot, graph.childrenByParent, visibleIds]);
 
@@ -107,7 +116,10 @@ export function LineageAwareSvgGenealogyTree({
   }, [graph.people, query, visibleIds]);
 
   const selected = selectedId ? graph.byId.get(selectedId) ?? null : null;
-  const selectedPath = selected ? pathToRoot(selected, graph.byId) : [];
+  const selectedPath = useMemo(
+    () => selected ? pathToRoot(selected, graph.byId) : [],
+    [graph.byId, selected],
+  );
   const focusedParent = focusedRoot?.lineage_parent_id
     ? graph.byId.get(focusedRoot.lineage_parent_id) ?? null
     : null;
@@ -130,7 +142,7 @@ export function LineageAwareSvgGenealogyTree({
   };
 
   const fitAndCenter = (animated = true) => {
-    const fittedZoom = Math.min(1, viewportWidth / Math.max(layout.width, 1));
+    const fittedZoom = Math.max(minZoom, Math.min(1, viewportWidth / Math.max(layout.width, 1)));
     setSafeZoom(fittedZoom, animated);
   };
 
@@ -149,24 +161,28 @@ export function LineageAwareSvgGenealogyTree({
   }, [focusedRootId, layout.width, viewportWidth]);
 
   const focusOn = (person: Person) => {
+    Keyboard.dismiss();
+    setQuery('');
     setFocusedRootId(person.id);
     setSelectedId(person.id);
-    setExpandedIds(collectExpandableIds(
+    setExpandedIds(collectFocusedExpandedIds(
       person,
       graph.childrenByParent,
       visibleIds,
-      maxGenerations,
+      5,
     ));
   };
 
   const handleNodePress = (person: Person) => {
-    const children = (graph.childrenByParent.get(person.id) ?? []).filter((child) => visibleIds.has(child.id));
-    setSelectedId(person.id);
+    const children: Person[] = (graph.childrenByParent.get(person.id) ?? [])
+      .filter((child: Person) => window.ids.has(child.id));
 
     if (person.id !== focusedRoot?.id) {
       focusOn(person);
       return;
     }
+
+    setSelectedId(person.id);
     if (!children.length) return;
 
     setExpandedIds((current) => {
@@ -217,8 +233,19 @@ export function LineageAwareSvgGenealogyTree({
         onZoomOut={() => setSafeZoom(zoom - zoomStep)}
         onReset={() => setSafeZoom(1)}
         onFit={() => fitAndCenter()}
-        onExpandAll={() => setExpandedIds(collectExpandableIds(focusedRoot, graph.childrenByParent, visibleIds, maxGenerations))}
-        onCollapseAll={() => { setExpandedIds(new Set()); setSelectedId(null); }}
+        onExpandAll={() => setExpandedIds(collectExpandableIds(
+          focusedRoot,
+          graph.childrenByParent,
+          visibleIds,
+          maxGenerations,
+          maxExpandedNodes,
+        ))}
+        onCollapseAll={() => setExpandedIds(collectFocusedExpandedIds(
+          focusedRoot,
+          graph.childrenByParent,
+          visibleIds,
+          5,
+        ))}
       />
 
       <View style={styles.search}>
@@ -288,7 +315,8 @@ export function LineageAwareSvgGenealogyTree({
 
             {layout.nodes.map((node) => {
               const person = node.person;
-              const children = (graph.childrenByParent.get(person.id) ?? []).filter((child) => visibleIds.has(child.id));
+              const children: Person[] = (graph.childrenByParent.get(person.id) ?? [])
+                .filter((child: Person) => window.ids.has(child.id));
               const depth = window.depthById.get(person.id) ?? 0;
               const expanded = depth < maxGenerations - 1 && children.length > 0 && expandedIds.has(person.id);
               const branchLabel = person.chart_branch ? branchLabels[person.chart_branch] : null;
@@ -313,7 +341,7 @@ export function LineageAwareSvgGenealogyTree({
 
       <View style={styles.tip}>
         <Ionicons name="information-circle" size={19} color={colors.gold} />
-        <Text style={styles.tipText}>تُنفذ الملاءمة والتوسيط تلقائيًا عند اختيار أي شخص، مع بقاء التكبير والتصغير متاحين يدويًا.</Text>
+        <Text style={styles.tipText}>عند اختيار نتيجة يظهر مسار الأجداد وأبناء الشخص المباشرون فقط. اضغط على أحد الأبناء للانتقال إلى فرعه؛ وبذلك لا تُحمّل الفروع الكبيرة دفعة واحدة.</Text>
       </View>
     </View>
   );
