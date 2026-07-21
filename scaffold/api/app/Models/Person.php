@@ -20,6 +20,8 @@ class Person extends Model
         'honorific',
         'gender',
         'mobile_number',
+        'birth_date',
+        'death_date',
         'lineage_parent_id',
         'status',
         'approval_status',
@@ -43,6 +45,8 @@ class Person extends Model
         return [
             'generation' => 'integer',
             'chart_order' => 'integer',
+            'birth_date' => 'date',
+            'death_date' => 'date',
             'is_living' => 'boolean',
             'is_provisional' => 'boolean',
             'approved_at' => 'datetime',
@@ -52,6 +56,8 @@ class Person extends Model
     protected static function booted(): void
     {
         static::saving(function (Person $person): void {
+            $person->is_living = blank($person->death_date);
+
             if ($person->chart_reading_id || $person->is_provisional) {
                 return;
             }
