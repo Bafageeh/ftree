@@ -8,6 +8,7 @@ use App\Models\Person;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PersonProfileController extends Controller
 {
@@ -16,16 +17,28 @@ class PersonProfileController extends Controller
         $validated = $request->validate([
             'gender' => ['nullable', Rule::in(['male', 'female'])],
             'mobile_number' => ['nullable', 'string', 'max:32'],
-            'is_living' => ['sometimes', 'boolean'],
+            'birth_date' => ['nullable', 'date_format:Y-m-d'],
+            'death_date' => ['nullable', 'date_format:Y-m-d'],
             'general_details' => ['nullable', 'string', 'max:12000'],
         ]);
+
+        $birthDate = $validated['birth_date'] ?? null;
+        $deathDate = $validated['death_date'] ?? null;
+
+        if ($birthDate && $deathDate && $deathDate < $birthDate) {
+            throw ValidationException::withMessages([
+                'death_date' => ['تاريخ الوفاة يجب أن يكون بعد تاريخ الولادة أو مساويًا له.'],
+            ]);
+        }
 
         $person->fill([
             'gender' => $validated['gender'] ?? null,
             'mobile_number' => filled($validated['mobile_number'] ?? null)
                 ? trim($validated['mobile_number'])
                 : null,
-            'is_living' => $validated['is_living'] ?? $person->is_living,
+            'birth_date' => $birthDate,
+            'death_date' => $deathDate,
+            'is_living' => blank($deathDate),
             'general_details' => filled($validated['general_details'] ?? null)
                 ? trim($validated['general_details'])
                 : null,
