@@ -15,14 +15,16 @@ type Props = {
 export function PersonProfileCard({ person, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [gender, setGender] = useState<Gender | null>(person.gender ?? null);
+  const [mobileNumber, setMobileNumber] = useState(person.mobile_number ?? '');
   const [details, setDetails] = useState(person.general_details ?? '');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setGender(person.gender ?? null);
+    setMobileNumber(person.mobile_number ?? '');
     setDetails(person.general_details ?? '');
-  }, [person.id, person.gender, person.general_details]);
+  }, [person.id, person.gender, person.mobile_number, person.general_details]);
 
   const save = async () => {
     if (busy) return;
@@ -30,11 +32,12 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
     try {
       const updated = await updatePersonProfile(person.id, {
         gender,
+        mobile_number: mobileNumber.trim() || null,
         general_details: details.trim() || null,
       });
       onUpdated(updated);
       setEditing(false);
-      Alert.alert('تم الحفظ', 'تم حفظ التفاصيل العامة والجنس.');
+      Alert.alert('تم الحفظ', 'تم حفظ رقم الجوال والتفاصيل العامة والجنس.');
     } catch (error) {
       Alert.alert('تعذر الحفظ', error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
     } finally {
@@ -107,6 +110,18 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <GenderButton label="أنثى" icon="woman" active={gender === 'female'} onPress={() => setGender('female')} />
           </View>
 
+          <Text style={styles.label}>رقم الجوال</Text>
+          <TextInput
+            value={mobileNumber}
+            onChangeText={setMobileNumber}
+            style={styles.input}
+            keyboardType="phone-pad"
+            maxLength={32}
+            textAlign="right"
+            placeholder="مثال: 05xxxxxxxx أو +9665xxxxxxxx"
+            placeholderTextColor={colors.muted}
+          />
+
           <Text style={styles.label}>تفاصيل عامة</Text>
           <TextInput
             value={details}
@@ -135,6 +150,10 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>الجنس</Text>
             <Text style={styles.detailValue}>{gender === 'male' ? 'ذكر' : gender === 'female' ? 'أنثى' : 'غير محدد'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>رقم الجوال</Text>
+            <Text style={styles.detailValue}>{mobileNumber.trim() || 'غير مضاف'}</Text>
           </View>
           <View style={styles.detailBlock}>
             <Text style={styles.detailLabel}>التفاصيل العامة</Text>
