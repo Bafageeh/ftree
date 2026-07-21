@@ -16,6 +16,7 @@ class PersonProfileController extends Controller
         $validated = $request->validate([
             'gender' => ['nullable', Rule::in(['male', 'female'])],
             'mobile_number' => ['nullable', 'string', 'max:32'],
+            'is_living' => ['sometimes', 'boolean'],
             'general_details' => ['nullable', 'string', 'max:12000'],
         ]);
 
@@ -24,6 +25,7 @@ class PersonProfileController extends Controller
             'mobile_number' => filled($validated['mobile_number'] ?? null)
                 ? trim($validated['mobile_number'])
                 : null,
+            'is_living' => $validated['is_living'] ?? $person->is_living,
             'general_details' => filled($validated['general_details'] ?? null)
                 ? trim($validated['general_details'])
                 : null,
