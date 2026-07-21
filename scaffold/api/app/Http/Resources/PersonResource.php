@@ -28,6 +28,7 @@ class PersonResource extends JsonResource
             'node_type' => $this->node_type,
             'honorific' => $this->honorific,
             'gender' => $this->gender,
+            'mobile_number' => $this->mobile_number,
             'lineage_parent_id' => $this->lineage_parent_id,
             'status' => $this->status,
             'approval_status' => $this->approval_status,
