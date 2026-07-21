@@ -28,16 +28,16 @@ export function TreeNodeCard({
 }: Props) {
   const person = node.person;
   const prophet = person.source_code === 'CORE-001';
+  const deceased = !!person.death_date;
   const accent = person.chart_color || colors.gold;
   const status = nodeStatus(person);
-  const life = livingStatus(person);
   const hasChildren = childCount > 0;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded: hasChildren ? expanded : undefined }}
-      accessibilityLabel={`${person.full_name}، ${life.fullLabel}${hasChildren ? `، ${childCount} أبناء` : ''}`}
+      accessibilityLabel={`${person.full_name}${deceased ? '، متوفى' : ''}${hasChildren ? `، ${childCount} أبناء` : ''}`}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
@@ -66,9 +66,10 @@ export function TreeNodeCard({
             width: 34 * zoom,
           },
           prophet && styles.prophetIcon,
+          deceased && !prophet && styles.deceasedIcon,
         ]}>
           <Ionicons
-            name={prophet ? 'star' : person.is_living ? 'person' : 'person-outline'}
+            name={prophet ? 'star' : deceased ? 'person-outline' : 'person'}
             size={18 * zoom}
             color={prophet ? colors.primary : colors.white}
           />
@@ -108,7 +109,7 @@ export function TreeNodeCard({
       </View>
 
       <View style={[styles.footer, { gap: 6 * zoom, marginTop: 9 * zoom }]}> 
-        <View style={[styles.statusGroup, { gap: 4 * zoom }]}>
+        <View style={[styles.statusGroup, { gap: 4 * zoom }]}> 
           <View style={[
             styles.statusPill,
             {
@@ -120,16 +121,18 @@ export function TreeNodeCard({
             <Text style={[styles.statusText, { color: status.color, fontSize: 8 * zoom }]}>{status.label}</Text>
           </View>
 
-          <View style={[
-            styles.statusPill,
-            {
-              backgroundColor: life.soft,
-              paddingHorizontal: 7 * zoom,
-              paddingVertical: 5 * zoom,
-            },
-          ]}>
-            <Text style={[styles.statusText, { color: life.color, fontSize: 8 * zoom }]}>{life.label}</Text>
-          </View>
+          {deceased && (
+            <View style={[
+              styles.statusPill,
+              {
+                backgroundColor: '#ECEDEA',
+                paddingHorizontal: 7 * zoom,
+                paddingVertical: 5 * zoom,
+              },
+            ]}>
+              <Text style={[styles.statusText, { color: '#626966', fontSize: 8 * zoom }]}>متوفى</Text>
+            </View>
+          )}
         </View>
 
         {hasChildren ? (
@@ -163,13 +166,6 @@ function nodeStatus(person: Person) {
   return { label: 'بانتظار المشرف', color: '#A87518', soft: '#F8EDCF' };
 }
 
-function livingStatus(person: Person) {
-  if (person.is_living) {
-    return { label: 'على قيد الحياة', fullLabel: 'على قيد الحياة', color: colors.success, soft: '#E4F2E8' };
-  }
-  return { label: 'متوفى', fullLabel: 'متوفى', color: '#626966', soft: '#ECEDEA' };
-}
-
 const styles = StyleSheet.create({
   node: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, position: 'absolute', ...shadow },
   nodePressed: { opacity: 0.82 },
@@ -177,6 +173,7 @@ const styles = StyleSheet.create({
   selectedNode: { borderColor: colors.gold, borderWidth: 2.5 },
   header: { alignItems: 'center', flexDirection: 'row-reverse' },
   personIcon: { alignItems: 'center', backgroundColor: colors.primary, justifyContent: 'center' },
+  deceasedIcon: { backgroundColor: '#6D7470' },
   prophetIcon: { backgroundColor: colors.goldSoft },
   identity: { flex: 1 },
   prophetLabel: { color: '#E8C977', fontWeight: '900', textAlign: 'right' },
