@@ -16,7 +16,8 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [gender, setGender] = useState<Gender | null>(person.gender ?? null);
   const [mobileNumber, setMobileNumber] = useState(person.mobile_number ?? '');
-  const [isLiving, setIsLiving] = useState(person.is_living);
+  const [birthDate, setBirthDate] = useState(formatDateForInput(person.birth_date));
+  const [deathDate, setDeathDate] = useState(formatDateForInput(person.death_date));
   const [details, setDetails] = useState(person.general_details ?? '');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -24,23 +25,49 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
   useEffect(() => {
     setGender(person.gender ?? null);
     setMobileNumber(person.mobile_number ?? '');
-    setIsLiving(person.is_living);
+    setBirthDate(formatDateForInput(person.birth_date));
+    setDeathDate(formatDateForInput(person.death_date));
     setDetails(person.general_details ?? '');
-  }, [person.id, person.gender, person.mobile_number, person.is_living, person.general_details]);
+  }, [
+    person.id,
+    person.gender,
+    person.mobile_number,
+    person.birth_date,
+    person.death_date,
+    person.general_details,
+  ]);
 
   const save = async () => {
     if (busy) return;
+
+    let normalizedBirthDate: string | null;
+    let normalizedDeathDate: string | null;
+
+    try {
+      normalizedBirthDate = normalizeDateForApi(birthDate, 'تاريخ الولادة');
+      normalizedDeathDate = normalizeDateForApi(deathDate, 'تاريخ الوفاة');
+    } catch (error) {
+      Alert.alert('تحقق من التاريخ', error instanceof Error ? error.message : 'أدخل التاريخ بالصيغة يوم/شهر/سنة.');
+      return;
+    }
+
+    if (normalizedBirthDate && normalizedDeathDate && normalizedDeathDate < normalizedBirthDate) {
+      Alert.alert('تحقق من التاريخ', 'تاريخ الوفاة يجب أن يكون بعد تاريخ الولادة أو مساويًا له.');
+      return;
+    }
+
     setBusy(true);
     try {
       const updated = await updatePersonProfile(person.id, {
         gender,
         mobile_number: mobileNumber.trim() || null,
-        is_living: isLiving,
+        birth_date: normalizedBirthDate,
+        death_date: normalizedDeathDate,
         general_details: details.trim() || null,
       });
       onUpdated(updated);
       setEditing(false);
-      Alert.alert('تم الحفظ', 'تم حفظ الحالة ورقم الجوال والتفاصيل العامة والجنس.');
+      Alert.alert('تم الحفظ', 'تم حفظ تاريخ الولادة وتاريخ الوفاة ورقم الجوال والتفاصيل العامة والجنس.');
     } catch (error) {
       Alert.alert('تعذر الحفظ', error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
     } finally {
@@ -113,11 +140,8 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <GenderButton label="أنثى" icon="woman" active={gender === 'female'} onPress={() => setGender('female')} />
           </View>
 
-          <Text style={styles.label}>الحالة</Text>
-          <View style={styles.livingRow}>
-            <LivingStatusButton label="على قيد الحياة" icon="heart" living active={isLiving} onPress={() => setIsLiving(true)} />
-            <LivingStatusButton label="متوفى" icon="moon" living={false} active={!isLiving} onPress={() => setIsLiving(false)} />
-          </View>
+          <DateInput label="تاريخ الولادة" value={birthDate} onChangeText={setBirthDate} />
+          <DateInput label="تاريخ الوفاة" value={deathDate} onChangeText={setDeathDate} optionalHint="اتركه فارغًا إذا لم توجد وفاة" />
 
           <Text style={styles.label}>رقم الجوال</Text>
           <TextInput
@@ -139,7 +163,7 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             multiline
             textAlign="right"
             textAlignVertical="top"
-            placeholder="اكتب نبذة عامة، تاريخ الميلاد والوفاة، السيرة، المهنة، مكان الإقامة أو أي معلومات مفيدة..."
+            placeholder="اكتب نبذة عامة، السيرة، المهنة، مكان الإقامة أو أي معلومات مفيدة..."
             placeholderTextColor={colors.muted}
           />
 
@@ -161,13 +185,12 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <Text style={styles.detailValue}>{gender === 'male' ? 'ذكر' : gender === 'female' ? 'أنثى' : 'غير محدد'}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>الحالة</Text>
-            <View style={[styles.lifePill, isLiving ? styles.lifePillLiving : styles.lifePillDeceased]}>
-              <Ionicons name={isLiving ? 'heart' : 'moon'} size={14} color={isLiving ? colors.success : '#626966'} />
-              <Text style={[styles.lifePillText, isLiving ? styles.lifeTextLiving : styles.lifeTextDeceased]}>
-                {isLiving ? 'على قيد الحياة' : 'متوفى'}
-              </Text>
-            </View>
+            <Text style={styles.detailLabel}>تاريخ الولادة</Text>
+            <Text style={styles.detailValue}>{formatDateDisplay(person.birth_date)}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>تاريخ الوفاة</Text>
+            <Text style={styles.detailValue}>{formatDateDisplay(person.death_date)}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>رقم الجوال</Text>
@@ -206,32 +229,87 @@ function GenderButton({
   );
 }
 
-function LivingStatusButton({
+function DateInput({
   label,
-  icon,
-  living,
-  active,
-  onPress,
+  value,
+  onChangeText,
+  optionalHint,
 }: {
   label: string;
-  icon: 'heart' | 'moon';
-  living: boolean;
-  active: boolean;
-  onPress: () => void;
+  value: string;
+  onChangeText: (value: string) => void;
+  optionalHint?: string;
 }) {
-  const activeColor = living ? colors.success : '#626966';
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.livingButton,
-        active && { backgroundColor: activeColor, borderColor: activeColor },
-      ]}
-    >
-      <Ionicons name={icon} size={19} color={active ? colors.white : activeColor} />
-      <Text style={[styles.livingText, { color: active ? colors.white : activeColor }]}>{label}</Text>
-    </Pressable>
+    <View>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.dateInputShell}>
+        <Ionicons name="calendar-outline" size={19} color={colors.primary} />
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          style={styles.dateInput}
+          maxLength={10}
+          textAlign="right"
+          placeholder="يوم/شهر/سنة"
+          placeholderTextColor={colors.muted}
+          autoCorrect={false}
+        />
+      </View>
+      {!!optionalHint && <Text style={styles.dateHint}>{optionalHint}</Text>}
+    </View>
   );
+}
+
+function normalizeDateForApi(rawValue: string, label: string): string | null {
+  const value = toLatinDigits(rawValue).trim();
+  if (!value) return null;
+
+  const displayMatch = value.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{1,4})$/);
+  const isoMatch = value.match(/^(\d{1,4})-(\d{1,2})-(\d{1,2})$/);
+
+  let dayText: string;
+  let monthText: string;
+  let yearText: string;
+
+  if (displayMatch) {
+    [, dayText, monthText, yearText] = displayMatch;
+  } else if (isoMatch) {
+    [, yearText, monthText, dayText] = isoMatch;
+  } else {
+    throw new Error(`${label} غير صحيح. استخدم الصيغة يوم/شهر/سنة.`);
+  }
+
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const leapYear = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) {
+    throw new Error(`${label} غير صحيح. تحقق من اليوم والشهر والسنة.`);
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function formatDateForInput(value?: string | null): string {
+  if (!value) return '';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function formatDateDisplay(value?: string | null): string {
+  return value ? formatDateForInput(value) : 'غير مضاف';
+}
+
+function toLatinDigits(value: string): string {
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+
+  return value
+    .replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)));
 }
 
 const styles = StyleSheet.create({
@@ -253,10 +331,10 @@ const styles = StyleSheet.create({
   genderActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   genderText: { color: colors.primary, fontSize: 13, fontWeight: '900' },
   genderTextActive: { color: colors.white },
-  livingRow: { flexDirection: 'row-reverse', gap: 9 },
-  livingButton: { alignItems: 'center', backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flex: 1, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', minHeight: 48 },
-  livingText: { fontSize: 12, fontWeight: '900' },
   input: { backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, color: colors.text, fontSize: 15, padding: 12 },
+  dateInputShell: { alignItems: 'center', backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 12 },
+  dateInput: { color: colors.text, flex: 1, fontSize: 15, minHeight: 50 },
+  dateHint: { color: colors.muted, fontSize: 10, marginTop: 5, textAlign: 'right' },
   detailsInput: { minHeight: 145 },
   actions: { flexDirection: 'row-reverse', gap: 9, marginTop: 12 },
   cancelButton: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, flex: 1, flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', minHeight: 49 },
@@ -267,12 +345,6 @@ const styles = StyleSheet.create({
   detailBlock: { paddingVertical: 11 },
   detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' },
   detailValue: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  lifePill: { alignItems: 'center', borderRadius: 999, flexDirection: 'row-reverse', gap: 5, paddingHorizontal: 10, paddingVertical: 6 },
-  lifePillLiving: { backgroundColor: '#E4F2E8' },
-  lifePillDeceased: { backgroundColor: '#ECEDEA' },
-  lifePillText: { fontSize: 12, fontWeight: '900' },
-  lifeTextLiving: { color: colors.success },
-  lifeTextDeceased: { color: '#626966' },
   detailsText: { color: colors.text, fontSize: 14, lineHeight: 24, marginTop: 7, textAlign: 'right' },
   editButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', marginTop: 10, minHeight: 50 },
   editText: { color: colors.white, fontSize: 13, fontWeight: '900' },
