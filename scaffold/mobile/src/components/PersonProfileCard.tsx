@@ -16,6 +16,7 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [gender, setGender] = useState<Gender | null>(person.gender ?? null);
   const [mobileNumber, setMobileNumber] = useState(person.mobile_number ?? '');
+  const [isLiving, setIsLiving] = useState(person.is_living);
   const [details, setDetails] = useState(person.general_details ?? '');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -23,8 +24,9 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
   useEffect(() => {
     setGender(person.gender ?? null);
     setMobileNumber(person.mobile_number ?? '');
+    setIsLiving(person.is_living);
     setDetails(person.general_details ?? '');
-  }, [person.id, person.gender, person.mobile_number, person.general_details]);
+  }, [person.id, person.gender, person.mobile_number, person.is_living, person.general_details]);
 
   const save = async () => {
     if (busy) return;
@@ -33,11 +35,12 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
       const updated = await updatePersonProfile(person.id, {
         gender,
         mobile_number: mobileNumber.trim() || null,
+        is_living: isLiving,
         general_details: details.trim() || null,
       });
       onUpdated(updated);
       setEditing(false);
-      Alert.alert('تم الحفظ', 'تم حفظ رقم الجوال والتفاصيل العامة والجنس.');
+      Alert.alert('تم الحفظ', 'تم حفظ الحالة ورقم الجوال والتفاصيل العامة والجنس.');
     } catch (error) {
       Alert.alert('تعذر الحفظ', error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
     } finally {
@@ -110,6 +113,12 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <GenderButton label="أنثى" icon="woman" active={gender === 'female'} onPress={() => setGender('female')} />
           </View>
 
+          <Text style={styles.label}>الحالة</Text>
+          <View style={styles.livingRow}>
+            <LivingStatusButton label="على قيد الحياة" icon="heart" living active={isLiving} onPress={() => setIsLiving(true)} />
+            <LivingStatusButton label="متوفى" icon="moon" living={false} active={!isLiving} onPress={() => setIsLiving(false)} />
+          </View>
+
           <Text style={styles.label}>رقم الجوال</Text>
           <TextInput
             value={mobileNumber}
@@ -152,6 +161,15 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <Text style={styles.detailValue}>{gender === 'male' ? 'ذكر' : gender === 'female' ? 'أنثى' : 'غير محدد'}</Text>
           </View>
           <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>الحالة</Text>
+            <View style={[styles.lifePill, isLiving ? styles.lifePillLiving : styles.lifePillDeceased]}>
+              <Ionicons name={isLiving ? 'heart' : 'moon'} size={14} color={isLiving ? colors.success : '#626966'} />
+              <Text style={[styles.lifePillText, isLiving ? styles.lifeTextLiving : styles.lifeTextDeceased]}>
+                {isLiving ? 'على قيد الحياة' : 'متوفى'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>رقم الجوال</Text>
             <Text style={styles.detailValue}>{mobileNumber.trim() || 'غير مضاف'}</Text>
           </View>
@@ -188,6 +206,34 @@ function GenderButton({
   );
 }
 
+function LivingStatusButton({
+  label,
+  icon,
+  living,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon: 'heart' | 'moon';
+  living: boolean;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const activeColor = living ? colors.success : '#626966';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.livingButton,
+        active && { backgroundColor: activeColor, borderColor: activeColor },
+      ]}
+    >
+      <Ionicons name={icon} size={19} color={active ? colors.white : activeColor} />
+      <Text style={[styles.livingText, { color: active ? colors.white : activeColor }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1, marginTop: 14, padding: 18, ...shadow },
   titleRow: { alignItems: 'center', flexDirection: 'row-reverse', gap: 8, marginBottom: 14 },
@@ -207,6 +253,9 @@ const styles = StyleSheet.create({
   genderActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   genderText: { color: colors.primary, fontSize: 13, fontWeight: '900' },
   genderTextActive: { color: colors.white },
+  livingRow: { flexDirection: 'row-reverse', gap: 9 },
+  livingButton: { alignItems: 'center', backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, flex: 1, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', minHeight: 48 },
+  livingText: { fontSize: 12, fontWeight: '900' },
   input: { backgroundColor: colors.background, borderColor: colors.line, borderRadius: radius.md, borderWidth: 1, color: colors.text, fontSize: 15, padding: 12 },
   detailsInput: { minHeight: 145 },
   actions: { flexDirection: 'row-reverse', gap: 9, marginTop: 12 },
@@ -218,6 +267,12 @@ const styles = StyleSheet.create({
   detailBlock: { paddingVertical: 11 },
   detailLabel: { color: colors.muted, fontSize: 12, textAlign: 'right' },
   detailValue: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  lifePill: { alignItems: 'center', borderRadius: 999, flexDirection: 'row-reverse', gap: 5, paddingHorizontal: 10, paddingVertical: 6 },
+  lifePillLiving: { backgroundColor: '#E4F2E8' },
+  lifePillDeceased: { backgroundColor: '#ECEDEA' },
+  lifePillText: { fontSize: 12, fontWeight: '900' },
+  lifeTextLiving: { color: colors.success },
+  lifeTextDeceased: { color: '#626966' },
   detailsText: { color: colors.text, fontSize: 14, lineHeight: 24, marginTop: 7, textAlign: 'right' },
   editButton: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, flexDirection: 'row-reverse', gap: 7, justifyContent: 'center', marginTop: 10, minHeight: 50 },
   editText: { color: colors.white, fontSize: 13, fontWeight: '900' },
