@@ -11,6 +11,7 @@ type UpdatePersonPayload = {
 
 export type UpdatePersonProfilePayload = {
   gender?: Gender | null;
+  mobile_number?: string | null;
   general_details?: string | null;
 };
 
