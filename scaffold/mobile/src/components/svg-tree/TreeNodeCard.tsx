@@ -30,13 +30,14 @@ export function TreeNodeCard({
   const prophet = person.source_code === 'CORE-001';
   const accent = person.chart_color || colors.gold;
   const status = nodeStatus(person);
+  const life = livingStatus(person);
   const hasChildren = childCount > 0;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded: hasChildren ? expanded : undefined }}
-      accessibilityLabel={`${person.full_name}${hasChildren ? `، ${childCount} أبناء` : ''}`}
+      accessibilityLabel={`${person.full_name}، ${life.fullLabel}${hasChildren ? `، ${childCount} أبناء` : ''}`}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
@@ -67,7 +68,7 @@ export function TreeNodeCard({
           prophet && styles.prophetIcon,
         ]}>
           <Ionicons
-            name={prophet ? 'star' : 'person'}
+            name={prophet ? 'star' : person.is_living ? 'person' : 'person-outline'}
             size={18 * zoom}
             color={prophet ? colors.primary : colors.white}
           />
@@ -106,31 +107,44 @@ export function TreeNodeCard({
         </View>
       </View>
 
-      <View style={[styles.footer, { gap: 8 * zoom, marginTop: 9 * zoom }]}> 
-        <View style={[
-          styles.statusPill,
-          {
-            backgroundColor: status.soft,
-            paddingHorizontal: 9 * zoom,
-            paddingVertical: 5 * zoom,
-          },
-        ]}>
-          <Text style={[styles.statusText, { color: status.color, fontSize: 9 * zoom }]}>{status.label}</Text>
+      <View style={[styles.footer, { gap: 6 * zoom, marginTop: 9 * zoom }]}> 
+        <View style={[styles.statusGroup, { gap: 4 * zoom }]}>
+          <View style={[
+            styles.statusPill,
+            {
+              backgroundColor: status.soft,
+              paddingHorizontal: 7 * zoom,
+              paddingVertical: 5 * zoom,
+            },
+          ]}>
+            <Text style={[styles.statusText, { color: status.color, fontSize: 8 * zoom }]}>{status.label}</Text>
+          </View>
+
+          <View style={[
+            styles.statusPill,
+            {
+              backgroundColor: life.soft,
+              paddingHorizontal: 7 * zoom,
+              paddingVertical: 5 * zoom,
+            },
+          ]}>
+            <Text style={[styles.statusText, { color: life.color, fontSize: 8 * zoom }]}>{life.label}</Text>
+          </View>
         </View>
 
         {hasChildren ? (
-          <Text style={[styles.childrenText, { fontSize: 9 * zoom }, prophet && styles.prophetMeta]}>
+          <Text numberOfLines={1} style={[styles.childrenText, { fontSize: 8 * zoom }, prophet && styles.prophetMeta]}>
             {childCount} {childCount === 1 ? 'ابن' : 'أبناء'} · {expanded ? 'إخفاء' : 'استعراض'}
           </Text>
         ) : (
-          <Text style={[styles.leafText, { fontSize: 9 * zoom }, prophet && styles.prophetMeta]}>نهاية الفرع</Text>
+          <Text style={[styles.leafText, { fontSize: 8 * zoom }, prophet && styles.prophetMeta]}>نهاية الفرع</Text>
         )}
       </View>
 
       {!!branchLabel && branchLabel !== 'الجذع الأوسط' && (
         <Text
           numberOfLines={1}
-          style={[styles.branch, { fontSize: 9 * zoom, marginTop: 5 * zoom }, prophet && styles.prophetMeta]}
+          style={[styles.branch, { fontSize: 8 * zoom, marginTop: 4 * zoom }, prophet && styles.prophetMeta]}
         >
           {branchLabel}
         </Text>
@@ -147,6 +161,13 @@ function nodeStatus(person: Person) {
     return { label: 'معتمد', color: colors.success, soft: '#E4F2E8' };
   }
   return { label: 'بانتظار المشرف', color: '#A87518', soft: '#F8EDCF' };
+}
+
+function livingStatus(person: Person) {
+  if (person.is_living) {
+    return { label: 'على قيد الحياة', fullLabel: 'على قيد الحياة', color: colors.success, soft: '#E4F2E8' };
+  }
+  return { label: 'متوفى', fullLabel: 'متوفى', color: '#626966', soft: '#ECEDEA' };
 }
 
 const styles = StyleSheet.create({
@@ -166,9 +187,10 @@ const styles = StyleSheet.create({
   expandButtonOpen: { backgroundColor: colors.primary },
   expandButtonLeaf: { backgroundColor: '#EEF0EB' },
   footer: { alignItems: 'center', flexDirection: 'row-reverse', justifyContent: 'space-between' },
+  statusGroup: { alignItems: 'center', flexDirection: 'row-reverse', flexShrink: 1 },
   statusPill: { borderRadius: 999 },
   statusText: { fontWeight: '900' },
-  childrenText: { color: colors.primary, fontWeight: '900' },
+  childrenText: { color: colors.primary, flexShrink: 1, fontWeight: '900' },
   leafText: { color: colors.muted },
   branch: { color: '#8A661E', fontWeight: '800', textAlign: 'right' },
 });
