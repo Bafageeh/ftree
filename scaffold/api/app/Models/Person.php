@@ -19,6 +19,7 @@ class Person extends Model
         'node_type',
         'honorific',
         'gender',
+        'mobile_number',
         'lineage_parent_id',
         'status',
         'approval_status',
