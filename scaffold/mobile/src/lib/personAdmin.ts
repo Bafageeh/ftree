@@ -12,7 +12,8 @@ type UpdatePersonPayload = {
 export type UpdatePersonProfilePayload = {
   gender?: Gender | null;
   mobile_number?: string | null;
-  is_living?: boolean;
+  birth_date?: string | null;
+  death_date?: string | null;
   general_details?: string | null;
 };
 
