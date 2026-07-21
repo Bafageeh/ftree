@@ -14,6 +14,8 @@ export type Person = {
   honorific?: string | null;
   gender?: Gender | null;
   mobile_number?: string | null;
+  birth_date?: string | null;
+  death_date?: string | null;
   lineage_parent_id?: number | null;
   status: ReadingStatus;
   approval_status?: ApprovalStatus;
