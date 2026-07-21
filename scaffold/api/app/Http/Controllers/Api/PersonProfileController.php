@@ -15,11 +15,15 @@ class PersonProfileController extends Controller
     {
         $validated = $request->validate([
             'gender' => ['nullable', Rule::in(['male', 'female'])],
+            'mobile_number' => ['nullable', 'string', 'max:32'],
             'general_details' => ['nullable', 'string', 'max:12000'],
         ]);
 
         $person->fill([
             'gender' => $validated['gender'] ?? null,
+            'mobile_number' => filled($validated['mobile_number'] ?? null)
+                ? trim($validated['mobile_number'])
+                : null,
             'general_details' => filled($validated['general_details'] ?? null)
                 ? trim($validated['general_details'])
                 : null,
