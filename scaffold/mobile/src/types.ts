@@ -13,6 +13,7 @@ export type Person = {
   node_type?: GenealogyNodeType;
   honorific?: string | null;
   gender?: Gender | null;
+  mobile_number?: string | null;
   lineage_parent_id?: number | null;
   status: ReadingStatus;
   approval_status?: ApprovalStatus;
