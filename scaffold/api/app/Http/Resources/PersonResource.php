@@ -29,6 +29,8 @@ class PersonResource extends JsonResource
             'honorific' => $this->honorific,
             'gender' => $this->gender,
             'mobile_number' => $this->mobile_number,
+            'birth_date' => $this->birth_date?->format('Y-m-d'),
+            'death_date' => $this->death_date?->format('Y-m-d'),
             'lineage_parent_id' => $this->lineage_parent_id,
             'status' => $this->status,
             'approval_status' => $this->approval_status,
@@ -44,7 +46,7 @@ class PersonResource extends JsonResource
             'source_reference' => $this->source_reference,
             'source_locator' => $this->source_locator,
             'chart_order' => $this->chart_order,
-            'is_living' => $this->is_living,
+            'is_living' => blank($this->death_date),
             'parent' => new self($this->whenLoaded('parent')),
             'children' => self::collection($this->whenLoaded('children')),
         ];
