@@ -11,7 +11,7 @@ on:
       - scripts/bundle-genealogy-snapshot.js
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: shajara-android-apk
@@ -265,3 +265,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Publish downloadable GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./scaffold/mobile/app.json').expo.version")"
+          TAG="shajara-v${VERSION}"
+          TITLE="شجرة النسب الشريف ${VERSION}"
+          NOTES="نسخة أندرويد تتضمن رقم الجوال وتاريخ الولادة وتاريخ الوفاة، وتظهر كلمة متوفى في الشجرة فقط عند وجود تاريخ وفاة."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              Shajara-Android-Release.apk \
+              Shajara-Android-Release.apk.sha256 \
+              --clobber
+          else
+            gh release create "$TAG" \
+              Shajara-Android-Release.apk \
+              Shajara-Android-Release.apk.sha256 \
+              --title "$TITLE" \
+              --notes "$NOTES"
+          fi
