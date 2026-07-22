@@ -1,0 +1,50 @@
+name: Report Shajara Android APK Status
+
+on:
+  workflow_run:
+    workflows:
+      - Build Shajara Android APK
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shajara-android-apk-status
+  cancel-in-progress: true
+
+jobs:
+  report-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Record APK build result
+        shell: bash
+        env:
+          BUILD_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+          BUILD_URL: ${{ github.event.workflow_run.html_url }}
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'Version: 1.0.7 (8)' \
+            "Conclusion: $BUILD_CONCLUSION" \
+            "Run ID: $BUILD_RUN_ID" \
+            "Run URL: $BUILD_URL" \
+            "Commit: $BUILD_SHA" \
+            "Reported: $(date --iso-8601=seconds)" \
+            > .github/latest-apk-build-status.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/latest-apk-build-status.txt
+          git commit -m "Report Shajara APK build: $BUILD_CONCLUSION"
+          git push origin HEAD:main
