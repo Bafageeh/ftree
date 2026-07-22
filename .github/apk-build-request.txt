@@ -1,5 +1,5 @@
-Build requested: 2026-07-22T03:42:33+03:00
+Build requested: 2026-07-22T04:03:00+03:00
 Version: 1.0.7 (8)
-Reason: Include mobile number, birth date, death date, and show deceased status only when a death date exists
+Reason: Final Android APK with mobile number, birth date, death date, and deceased-only tree badge
 Artifact: Shajara-Android-Release-APK
 Build method: GitHub Actions Gradle release; no EAS build credits
