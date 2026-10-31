@@ -1,0 +1,81 @@
+name: Hotfix missing Expo adminSession module
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/hotfix-expo-admin-session.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restore missing module on actual server
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s scaffold/mobile/src/lib/adminSession.ts
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/mobile/src/lib/adminSession.ts "root@$HOST:/tmp/shajara-adminSession-hotfix.ts"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          echo "BEFORE_MODULE_PRESENT=$(test -s src/lib/adminSession.ts && echo yes || echo no)"
+          test -s 'app/(tabs)/review.tsx'
+          grep -Fq "from '../../src/lib/adminSession'" 'app/(tabs)/review.tsx'
+          mkdir -p src/lib
+          if test -s src/lib/adminSession.ts; then
+            cp -p src/lib/adminSession.ts "src/lib/adminSession.ts.hotfix-backup-$(date +%Y%m%d%H%M%S)"
+          fi
+          install -m 0644 -o pmsa -g pmsa /tmp/shajara-adminSession-hotfix.ts src/lib/adminSession.ts
+          test -s src/lib/adminSession.ts
+          node - <<'JS'
+          const fs=require('fs');
+          const root='app/(tabs)/review.tsx';
+          const source=fs.readFileSync(root,'utf8');
+          if(!source.includes("../../src/lib/adminSession"))throw new Error('Review import unexpectedly changed');
+          if(!fs.existsSync('src/lib/adminSession.ts'))throw new Error('adminSession.ts is missing');
+          console.log('ADMIN_MODULE_RESOLVED');
+          JS
+          echo "EXPO_SERVERS:"
+          for p in 8083 8091; do
+            curl -fsS --max-time 3 "http://127.0.0.1:$p/status" 2>/dev/null | grep -iq running && echo "METRO_RUNNING_PORT=$p" || true
+          done
+          REMOTE
+      - name: Verify Android Expo development bundle can be generated
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          export CI=1 EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1
+          test -d node_modules/expo
+          npx expo export --platform android --output-dir /tmp/shajara-expo-admin-bundle-hotfix --clear
+          test -d /tmp/shajara-expo-admin-bundle-hotfix
+          echo EXPO_ANDROID_MODULE_BUNDLE_OK
+          for log in expo-8091.log expo-8083.log; do
+            test -f "$log" && grep -E 'on.expo.app|Metro waiting|Waiting on' "$log" | tail -n 3 || true
+          done
+          REMOTE
