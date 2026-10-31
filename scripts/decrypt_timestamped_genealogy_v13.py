@@ -6,7 +6,7 @@ from cryptography.hazmat.primitives import serialization,hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-payload=json.loads(Path('data/secure/shajara-v13-data.enc.json').read_text())
+payload=json.loads(Path('data/secure/timestamped_genealogy_v13.enc.json').read_text())
 assert payload['format']=='shajara-curve25519-aesgcm-v1'
 sha='14d797c281b4a180593d9d5fb5631112e7dd8aa9c30a311927abc66050a6d5ff'
 assert payload['sha256_original_xlsx']==sha
