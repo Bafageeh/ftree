@@ -63,7 +63,7 @@ jobs:
             status=req(path,method,data)
             assert status==401,(path,status)
           wrong=req('/admin/login','POST',{'username':'admin','password':'definitely-invalid'})
-          assert wrong in (401,422),wrong
+          assert wrong in (401,422,429),wrong  # HTTP 429 means anti-brute-force login throttle is working
           with urllib.request.urlopen(root+'/stats',timeout=30) as r:stats=json.load(r)
           assert stats['total']==517 and stats['connected_to_prophet']==517,stats
           print('ADMIN_AUTH_GUARD_VERIFIED',len(checked),'sensitive paths; public people',stats['total'])
