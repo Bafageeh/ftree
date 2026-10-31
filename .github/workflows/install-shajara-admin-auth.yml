@@ -1,0 +1,104 @@
+name: Install Shajara admin-only authentication
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/install-shajara-admin-auth.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Install server auth and preserve genealogy data
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+          ADMIN_BCRYPT_HASH: '$2y$12$PQS/O/6baSNNDNqHJ7jeQeN.7VaAQ62OyhghWXcMDoQHnXcFngxfC'
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "mkdir -p '$APP/shajara-api/app/Http/Middleware'"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/api/app/Http/Middleware/ShajaraAdminOnly.php "root@$HOST:$APP/shajara-api/app/Http/Middleware/ShajaraAdminOnly.php"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/api/app/Http/Controllers/Api/ShajaraAdminAuthController.php "root@$HOST:$APP/shajara-api/app/Http/Controllers/Api/ShajaraAdminAuthController.php"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/api/database/migrations/2026_10_31_200000_create_shajara_admin_access.php "root@$HOST:$APP/shajara-api/database/migrations/2026_10_31_200000_create_shajara_admin_access.php"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/bootstrap_shajara_admin.php "root@$HOST:/tmp/bootstrap_shajara_admin.php"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/api/routes/api.php "root@$HOST:/tmp/shajara_auth_api_routes.php"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' SHAJARA_ADMIN_BCRYPT_HASH='$ADMIN_BCRYPT_HASH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-api"
+          BACKUP="storage/app/private/before-admin-only-$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$BACKUP"
+          cp routes/api.php "$BACKUP/api.php"
+          cp routes/web.php "$BACKUP/web.php"
+          php -l /tmp/shajara_auth_api_routes.php
+          php -l app/Http/Middleware/ShajaraAdminOnly.php
+          php -l app/Http/Controllers/Api/ShajaraAdminAuthController.php
+          php -l database/migrations/2026_10_31_200000_create_shajara_admin_access.php
+          php -l /tmp/bootstrap_shajara_admin.php
+          cp /tmp/shajara_auth_api_routes.php routes/api.php
+          # Preserve special production-only web routing and protect signed imports.
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('routes/web.php')
+          s=p.read_text()
+          if 'use App\\Http\\Middleware\\ShajaraAdminOnly;' not in s:
+              s=s.replace('use Illuminate\\Support\\Facades\\Route;', 'use Illuminate\\Support\\Facades\\Route;\nuse App\\Http\\Middleware\\ShajaraAdminOnly;')
+          s=s.replace("->middleware(['signed','throttle:10,1']);", "->middleware(['signed', ShajaraAdminOnly::class, 'throttle:10,1']);")
+          p.write_text(s)
+          PY
+          php -l routes/api.php
+          php -l routes/web.php
+          php artisan migrate --force
+          php /tmp/bootstrap_shajara_admin.php
+          chown -R pmsa:pmsa app/Http/Middleware/ShajaraAdminOnly.php app/Http/Controllers/Api/ShajaraAdminAuthController.php database/migrations/2026_10_31_200000_create_shajara_admin_access.php routes/api.php routes/web.php
+          php artisan optimize:clear
+          php artisan route:cache
+          php artisan view:cache
+          echo SHAJARA_ADMIN_API_DEPLOYED
+          REMOTE
+      - name: Test anonymous users cannot approve or edit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          root='https://shajara.pm.sa/api/v1'
+          stats=json.load(urllib.request.urlopen(root+'/stats',timeout=30))
+          assert stats['total']==517,stats
+          paths=[
+            ('PATCH','/people/2397',b'{}'),
+            ('PATCH','/people/2397/profile',b'{}'),
+            ('POST','/people/2397/review',b'{}'),
+            ('POST','/people/2397/children',b'{}'),
+            ('DELETE','/people/2397',None),
+          ]
+          for method,path,body in paths:
+            req=urllib.request.Request(root+path,method=method,data=body,headers={'Accept':'application/json','Content-Type':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as response: code=response.status
+            except urllib.error.HTTPError as e: code=e.code
+            assert code==401,(method,path,code)
+            print('ADMIN_ACCESS_REQUIRED',method,path,code)
+          req=urllib.request.Request(root+'/admin/login',method='POST',data=b'{"username":"admin","password":"invalid"}',headers={'Accept':'application/json','Content-Type':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=20) as response: bad=response.status
+          except urllib.error.HTTPError as e: bad=e.code
+          assert bad in (401,422),bad
+          print('ADMIN_SECURITY_CHECKS_PASSED')
+          PY
