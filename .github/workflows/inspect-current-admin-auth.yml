@@ -1,0 +1,46 @@
+name: Inspect current Shajara admin integration
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-current-admin-auth.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Display only source definitions, never credentials
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-api"
+          echo '=== API ROUTES ==='
+          sed -n '1,90p' routes/api.php
+          echo '=== EXISTING MIDDLEWARE ==='
+          sed -n '1,110p' app/Http/Middleware/ShajaraAdminOnly.php 2>/dev/null || true
+          echo '=== AUTH FILES ==='
+          find app/Http/Controllers/Api app/Http/Middleware -maxdepth 1 -type f -iname '*Admin*' -printf '%f\n'
+          cd "$APP_PATH/shajara-mobile"
+          echo '=== MOBILE AUTH FILES ==='
+          find app src/lib -maxdepth 2 -type f -iname '*admin*' -printf '%p\n'
+          echo '=== MOBILE ADMIN TOKEN IMPORTS ==='
+          grep -R -n 'useAdminSession\|adminHeaders\|authHeaders\|loginAdmin' 'app/(tabs)/about.tsx' 'app/(tabs)/review.tsx' 'app/person/[id].tsx' src/lib/personAdmin.ts src/lib/supervisor.ts app/admin.tsx 2>/dev/null | head -55 || true
+          REMOTE
