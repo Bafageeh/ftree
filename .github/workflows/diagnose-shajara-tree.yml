@@ -44,6 +44,12 @@ jobs:
             python3 -c "import json;d=json.load(open('/tmp/shajara-diagnose-response'));print('FIELDS',list(d)[:12] if isinstance(d,dict) else type(d).__name__);print('ROWS',len(d.get('data',[])) if isinstance(d,dict) else 'N/A');print('META', {k:d.get(k) for k in ('total','current_page','last_page','per_page') if k in d})" 2>&1 || head -c 250 /tmp/shajara-diagnose-response
             echo
           done
+          echo '### GRAPH SOURCE'
+          sed -n '1,195p' "$MOBILE/src/lib/treeExplorer.ts"
+          echo '### CANVAS SOURCE'
+          sed -n '1,100p' "$MOBILE/src/components/explorer/ExplorerCanvas.tsx"
+          echo '### EXPO CONFIG'
+          sed -n '1,110p' "$MOBILE/app.json"
           echo '### TREE SOURCE'
           sed -n '1,220p' "$MOBILE/app/(tabs)/tree.tsx"
           echo '### EXPLORE GRAPH FILES'
