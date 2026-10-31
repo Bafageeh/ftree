@@ -53,6 +53,8 @@
         .stat strong { display: block; font-size: 27px; color: var(--primary); }
         .stat span { color: var(--muted); font-size: 13px; }
         .filters { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); }
+        .search-help { color: var(--muted); font-size: 13px; margin: 10px 2px 0; line-height: 1.65; }
+        .live-search-count { margin: 13px 2px 15px; min-height: 22px; color: var(--primary); font-weight: 800; font-size: 14px; }
         .filter-grid { display: grid; grid-template-columns: 1fr 230px auto; gap: 10px; }
         input, select, button {
             min-height: 48px;
@@ -118,15 +120,17 @@
 
     <form class="filters" method="get" action="{{ route('lineage.index') }}">
         <div class="filter-grid">
-            <input type="search" name="search" value="{{ $search }}" placeholder="ابحث بالاسم أو الرمز أو موضعه في المشجرة">
-            <select name="lineage_status">
+            <input type="search" name="search" id="tree-search" value="{{ $search }}" placeholder="اكتب الاسم أو رمز الموضع، مثل أحمد أو P003" aria-label="البحث في شجرة النسب" autocomplete="off">
+            <select name="lineage_status" id="tree-lineage-status">
                 <option value="all" @selected($status === 'all' || $status === 'connected')>جميع المتصلين بالنبي ﷺ</option>
                 <option value="confirmed" @selected($status === 'confirmed')>المتصلون المعتمدون</option>
                 <option value="pending" @selected($status === 'pending')>المتصلون بانتظار المراجعة</option>
             </select>
             <button type="submit">تطبيق</button>
         </div>
+        <p class="search-help">تظهر النتائج أثناء الكتابة. يدعم البحث اختلاف الهمزات وبعض أشكال كتابة الأسماء، كما يمكنك البحث برمز الموضع.</p>
     </form>
+    <div class="live-search-count" id="live-search-count" role="status" aria-live="polite">{{ number_format($records->count()) }} نتيجة</div>
 
     @if($selected && $selectedTrace)
         <h2 class="section-title">مسار النسب الكامل حتى النبي ﷺ</h2>
@@ -167,6 +171,7 @@
     @endif
 
     <h2 class="section-title">الأسماء المتصلة بالنبي ﷺ</h2>
+    <div id="tree-results">
     @if($records->isEmpty())
         <div class="empty">لا توجد نتائج مطابقة ضمن الأنساب المتصلة بالنبي ﷺ.</div>
     @else
@@ -193,6 +198,64 @@
             @endforeach
         </section>
     @endif
+    </div>
 </div>
+<script>
+(() => {
+    'use strict';
+    const form = document.querySelector('form.filters');
+    const field = document.getElementById('tree-search');
+    const status = document.getElementById('tree-lineage-status');
+    const liveCount = document.getElementById('live-search-count');
+    if (!form || !field || !status || !liveCount) return;
+
+    let debounce = null;
+    let active = null;
+    let serial = 0;
+
+    async function searchNow() {
+        const current = ++serial;
+        if (active) active.abort();
+        active = new AbortController();
+
+        const endpoint = new URL(form.action, window.location.href);
+        endpoint.search = new URLSearchParams(new FormData(form)).toString();
+        liveCount.textContent = 'جارٍ البحث...';
+
+        try {
+            const response = await fetch(endpoint.toString(), {
+                signal: active.signal,
+                headers: { 'Accept': 'text/html' }
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const html = await response.text();
+            if (current !== serial) return;
+
+            const next = new DOMParser().parseFromString(html, 'text/html').getElementById('tree-results');
+            const previous = document.getElementById('tree-results');
+            if (!next || !previous) throw new Error('Missing search results');
+            previous.replaceWith(next);
+            const count = next.querySelectorAll('.person-card').length;
+            liveCount.textContent = count + ' نتيجة';
+
+            const pageUrl = new URL(window.location.href);
+            pageUrl.search = endpoint.search;
+            window.history.replaceState(null, '', pageUrl.toString());
+        } catch (error) {
+            if (error.name !== 'AbortError' && current === serial) {
+                liveCount.textContent = 'تعذّر جلب النتائج؛ اضغط «بحث» لإعادة المحاولة.';
+            }
+        }
+    }
+
+    function schedule() {
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(searchNow, 320);
+    }
+
+    field.addEventListener('input', schedule);
+    status.addEventListener('change', searchNow);
+})();
+</script>
 </body>
 </html>
