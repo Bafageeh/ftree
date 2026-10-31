@@ -1,0 +1,57 @@
+name: Diagnose Shajara blank tree
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/diagnose-shajara-tree.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnosis:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Probe live API and Expo UI
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "APP_PATH='$APP_PATH' bash -s" <<'REMOTE'
+          set -uo pipefail
+          echo '### TIME + SERVER'
+          date -Is
+          API="$APP_PATH/shajara-api"
+          MOBILE="$APP_PATH/shajara-mobile"
+          echo '### LIVE API'
+          for path in stats 'people?per_page=3' 'people?per_page=250' 'people?search=محمد&per_page=5' 'chart-readings?per_page=3'; do
+            printf 'PATH:%s\n' "$path"
+            curl -k -s --max-time 12 -o /tmp/shajara-diagnose-response -w 'HTTP:%{http_code} SIZE:%{size_download}\n' "https://shajara.pm.sa/api/v1/$path"
+            python3 -c "import json;d=json.load(open('/tmp/shajara-diagnose-response'));print('FIELDS',list(d)[:12] if isinstance(d,dict) else type(d).__name__);print('ROWS',len(d.get('data',[])) if isinstance(d,dict) else 'N/A');print('META', {k:d.get(k) for k in ('total','current_page','last_page','per_page') if k in d})" 2>&1 || head -c 250 /tmp/shajara-diagnose-response
+            echo
+          done
+          echo '### MOBILE SOURCE'
+          grep -R -n -E 'function fetchPeople|async function fetchPeople|bundledPeople|function buildGraph|function buildFamily|useEffect|peopleQuery' "$MOBILE/src/lib/api.ts" "$MOBILE/app/(tabs)/tree.tsx" "$MOBILE/src/lib/genealogyGraph.ts" 2>/dev/null | head -75
+          echo '### API CODE'
+          grep -n -E 'source_reference|connectedPeople|function index|function stats' "$API/app/Http/Controllers/Api/PersonController.php" | head -70
+          echo '### EXPO'
+          ss -ltnp sport = :8091
+          tail -35 "$MOBILE/expo-8091.log"
+          echo '### FILES'
+          wc -c "$MOBILE/src/generated/bundledPeople.ts"
+          php -l "$API/app/Http/Controllers/Api/PersonController.php"
+          REMOTE
