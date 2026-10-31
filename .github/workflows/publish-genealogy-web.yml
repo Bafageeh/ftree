@@ -1,0 +1,41 @@
+name: Publish latest public genealogy web
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-genealogy-web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Filter permanent web pages to latest Excel
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/filter_live_lineage_web_v13.py "root@$HOST:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "python3 /tmp/filter_live_lineage_web_v13.py"
+          python3 - <<'PY'
+          from urllib.request import urlopen
+          data=urlopen('https://pm.sa/tree/',timeout=25).read().decode('utf-8','replace')
+          assert 'P538' in data, 'Missing latest leaf'
+          assert 'green-g002-1560-215' not in data, 'Old source rows are still visible'
+          print('PERMANENT_TREE_UPDATED')
+          PY
