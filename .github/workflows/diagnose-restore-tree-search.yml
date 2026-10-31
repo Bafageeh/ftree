@@ -1,0 +1,33 @@
+name: Diagnose and restore genealogy search
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/diagnose-restore-tree-search.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Diagnose and restore last known good search
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/diagnose_restore_tree_search.py "root@$HOST:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/diagnose_restore_tree_search.py"
