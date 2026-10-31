@@ -1,7 +1,7 @@
 <?php
 // Run only on the authorized production server after the schema migration.
 // Pass a bcrypt password HASH through a short-lived deployment environment variable.
-$app = require __DIR__.'/../bootstrap/app.php';
+$app = require getcwd().'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 $hash = (string) getenv('SHAJARA_ADMIN_BCRYPT_HASH');
