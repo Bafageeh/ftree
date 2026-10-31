@@ -1,0 +1,60 @@
+name: Fix genealogy search across ancestors
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/fix-ancestor-search.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate server
+        shell: bash
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf %s "$KEY" | base64 -d > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Safely deploy corrected lineage search
+        shell: bash
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$PORT" scripts/enable_ancestor_search_on_live_tree.py "root@$HOST:/tmp/enable_ancestor_search_on_live_tree.py"
+          ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/enable_ancestor_search_on_live_tree.py"
+      - name: Verify actual search results on the public URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,urllib.parse,urllib.request
+          root='https://pm.sa/tree/lineage?'
+          def search(text):
+              url=root+urllib.parse.urlencode({'search':text})
+              with urllib.request.urlopen(url,timeout=40) as r:
+                  assert r.status==200
+                  return r.read().decode('utf-8')
+          actual=search('احمد علوي هاشم')
+          assert 'الرمز: P517' in actual,'Expected Ahmad P517 in cross-generation search'
+          assert 'مسار النسب:' in actual,'Ancestor path explanation not displayed'
+          for text,code in [('P003','P003'),('أحمد','CORE-010'),('عبد الله','P003')]:
+              assert 'الرمز: '+code in search(text),(text,code)
+          stats=json.load(urllib.request.urlopen('https://shajara.pm.sa/api/v1/stats',timeout=25))
+          assert stats['total']==517 and stats['connected_to_prophet']==517
+          print('ANCESTOR_SEARCH_VERIFIED',json.dumps({'query':'احمد علوي هاشم','result':'P517','people':517},ensure_ascii=False))
+          PY
