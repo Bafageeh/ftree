@@ -1,0 +1,65 @@
+name: Restore canonical Shajara admin login
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/restore-canonical-admin-login.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restore canonical protected auth controller and clear caches
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scaffold/api/app/Http/Controllers/Api/ShajaraAdminAuthController.php "root@$HOST:/tmp/shajara-auth-controller-canonical.php"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-api"
+          file=app/Http/Controllers/Api/ShajaraAdminAuthController.php
+          cp "$file" "$file.before-canonical-$(date +%Y%m%d-%H%M%S).backup"
+          php -l /tmp/shajara-auth-controller-canonical.php
+          cp /tmp/shajara-auth-controller-canonical.php "$file"
+          chown pmsa:pmsa "$file"
+          php -l "$file"
+          su -s /bin/bash pmsa -c "cd '$APP_PATH/shajara-api' && php artisan optimize:clear && php artisan route:cache"
+          # The other experimental migration was never applied; prevent a
+          # future unrelated deploy from creating duplicate auth tables.
+          experimental=database/migrations/2026_10_31_224500_create_shajara_admin_sessions.php
+          if [ -f "$experimental" ]; then
+            mv "$experimental" /tmp/shajara-admin-migration-not-used.php
+          fi
+          echo 'CANONICAL_ADMIN_CONTROLLER_RESTORED'
+          REMOTE
+      - name: Verify invalid credentials rejected and protected API unchanged
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          api='https://shajara.pm.sa/api/v1'
+          req=urllib.request.Request(api+'/admin/login',method='POST',data=json.dumps({'username':'admin','password':'wrong-login-test'}).encode(),headers={'Accept':'application/json','Content-Type':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=30) as r:code=r.status
+          except urllib.error.HTTPError as e:code=e.code
+          assert code in (401,422,429),('Login misconfigured',code)
+          with urllib.request.urlopen(api+'/stats',timeout=30) as r:stats=json.load(r)
+          assert stats['total']==517
+          print('ADMIN_LOGIN_ROUTE_VERIFIED',code,'PUBLIC_517_VERIFIED')
+          PY
