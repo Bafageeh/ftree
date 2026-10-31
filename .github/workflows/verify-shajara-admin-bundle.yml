@@ -1,0 +1,48 @@
+name: Verify Shajara admin screen bundle
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/verify-shajara-admin-bundle.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Bundle the actual Expo SDK 58 app with the new secure login
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          test -s app/admin.tsx && test -s src/lib/adminSession.ts
+          grep -q "الإدارة" 'app/(tabs)/about.tsx'
+          grep -q "adminHeaders()" src/lib/personAdmin.ts
+          grep -q "adminHeaders()" src/lib/supervisor.ts
+          test -d node_modules/expo
+          rm -rf /tmp/shajara-admin-expo-verify
+          export CI=1 EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1
+          node_modules/.bin/expo export --platform android --output-dir /tmp/shajara-admin-expo-verify --clear
+          find /tmp/shajara-admin-expo-verify -type f | head -8
+          test -d /tmp/shajara-admin-expo-verify
+          echo 'SHAJARA_ADMIN_EXPO_BUNDLE_VERIFIED'
+          REMOTE
