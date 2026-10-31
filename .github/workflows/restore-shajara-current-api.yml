@@ -1,0 +1,48 @@
+name: Restore latest Shajara API and tree root
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/restore-shajara-current-api.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restore active Excel data filtering and canonical root
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/repair_latest_genealogy_api.py "root@$HOST:/tmp/repair_latest_genealogy_api.py"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/repair_latest_genealogy_api.py"
+          python3 - <<'PY'
+          import json,urllib.parse,urllib.request
+          stats=json.load(urllib.request.urlopen('https://shajara.pm.sa/api/v1/stats',timeout=30))
+          assert stats['total']==517 and stats['connected_to_prophet']==517 and stats['disconnected_from_prophet']==0,stats
+          url='https://pm.sa/tree/'
+          html=urllib.request.urlopen(url,timeout=30).read().decode('utf-8')
+          assert 'id="tree-search"' in html and 'id="tree-results"' in html
+          assert 'new DOMParser()' in html
+          search=urllib.request.urlopen(url+'?'+urllib.parse.urlencode({'search':'احمد'}),timeout=30).read().decode('utf-8')
+          assert 'أحمد المهاجر' in search
+          other=urllib.request.urlopen(url+'?'+urllib.parse.urlencode({'search':'عبد الله'}),timeout=30).read().decode('utf-8')
+          assert 'P003' in other
+          print('WEB_AND_API_VERIFIED',stats)
+          PY
