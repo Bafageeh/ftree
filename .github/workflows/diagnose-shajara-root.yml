@@ -36,6 +36,10 @@ jobs:
           for p in /mnt/home-storage/home/pmsa/public_html/tree /mnt/home-storage/home/pmsa/public_html/apps/shajara "$APP_PATH/shajara-api/public"; do ls -ld "$p" 2>/dev/null || true; done
           echo HTACCESS
           for p in /mnt/home-storage/home/pmsa/public_html/.htaccess /mnt/home-storage/home/pmsa/public_html/tree/.htaccess "$APP_PATH/shajara-api/public/.htaccess"; do if test -f "$p"; then echo "FILE $p"; grep -nE 'tree|lineage|RewriteRule|Redirect|RewriteBase' "$p" | head -35 || true; fi; done
+          echo HTTP_RESPONSE_ROOT
+          curl -ksSi --max-time 12 'https://pm.sa/tree/' | head -55 || true
+          echo API_WEB_ROUTES
+          php artisan route:list --path=lineage || true
           echo HTTP_PROBES
           for u in https://pm.sa/tree https://pm.sa/tree/ https://pm.sa/tree/lineage https://shajara.pm.sa/; do echo "$u"; curl -ksS -o /dev/null -w 'http:%{http_code} redirect:%{redirect_url}\n' --max-time 12 "$u" || true; done
           REMOTE
