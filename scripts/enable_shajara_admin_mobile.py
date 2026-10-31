@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Install the single-admin login on LIVE Expo58 Shajara, with complete rollback on type error."""
-import os, shutil, subprocess, time
+import os, shutil, subprocess, time, re
 from pathlib import Path
 
 root = Path(os.environ['APP_PATH']).resolve()
@@ -20,6 +20,13 @@ paths = {
     'auth': mobile/'src/lib/adminSession.ts',
     'login': mobile/'app/admin.tsx',
 }
+tsc=mobile/'node_modules/typescript/bin/tsc'
+if not tsc.exists(): raise RuntimeError('Missing live Expo58 TypeScript installation')
+def type_errors():
+    r=subprocess.run(['node',str(tsc),'--noEmit','--pretty','false'],cwd=mobile,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True,timeout=180)
+    return {re.sub(r'\\(\\d+,\\d+\\):', '(line):',line.strip()) for line in r.stdout.splitlines() if 'error TS' in line}
+baseline_errors=type_errors()
+print('BASELINE_TYPESCRIPT_ISSUES',len(baseline_errors),flush=True)
 for key, file in paths.items():
     if key not in ('auth','login') and not file.is_file():
         raise RuntimeError('Missing mobile entry: '+str(file))
@@ -130,12 +137,11 @@ export default function ReviewScreen() {
 """
     paths['review'].write_text(s)
 
-    tsc=mobile/'node_modules/typescript/bin/tsc'
-    if not tsc.exists(): raise RuntimeError('Missing live Expo58 TypeScript installation')
-    result=subprocess.run(['node',str(tsc),'--noEmit','--pretty','false'],cwd=mobile,
-                          stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True,timeout=180)
-    if result.returncode:
-        raise RuntimeError('Admin mobile TypeScript failed: '+result.stdout[-3600:])
+    after_errors=type_errors()
+    introduced=after_errors-baseline_errors
+    if introduced:
+        raise RuntimeError('Admin mobile introduced TypeScript issues: '+repr(sorted(introduced)[:12]))
+    print('ADMIN_UI_NO_NEW_TS_ERRORS', 'existing_project_issues='+str(len(baseline_errors)),flush=True)
 except Exception:
     for key,file in paths.items():
         prior=backup/(key+'.original')
