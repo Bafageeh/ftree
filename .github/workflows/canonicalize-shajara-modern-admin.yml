@@ -1,0 +1,85 @@
+name: Preserve Shajara modern admin UI and navigation in canonical source
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/canonicalize-shajara-modern-admin.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: shajara-canonicalize-modern-admin
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restore About tab name, verify protected administration and Expo
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          grep -q "ExplorerCanvas" 'app/(tabs)/tree.tsx'
+          grep -q "الإدارة" 'app/(tabs)/about.tsx'
+          grep -q "useAdminSession" 'app/(tabs)/review.tsx'
+          grep -q "useAdminSession" 'app/person/[id].tsx'
+          grep -q "adminHeaders()" src/lib/personAdmin.ts
+          grep -q "adminHeaders()" src/lib/supervisor.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/(tabs)/_layout.tsx')
+          s=p.read_text()
+          if "title: 'المزيد'" in s:
+              p.write_text(s.replace("title: 'المزيد'", "title: 'حول التطبيق'").replace('name="ellipsis-horizontal-circle"', 'name="information-circle-outline"'))
+          assert "title: 'حول التطبيق'" in p.read_text()
+          PY
+          chown pmsa:pmsa 'app/(tabs)/_layout.tsx'
+          export CI=1 EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1
+          node_modules/.bin/expo export --platform android --output-dir /tmp/shajara-modern-admin-preservation --clear >/tmp/shajara-modern-admin-export.log 2>&1 || { tail -n 60 /tmp/shajara-modern-admin-export.log; exit 1; }
+          echo 'MODERN_TREE_AND_ADMIN_EXPO_BUNDLE_VERIFIED'
+          REMOTE
+      - name: Save entire live admin source in GitHub to prevent future rollback
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/\(tabs\)/_layout.tsx" "scaffold/mobile/app/(tabs)/_layout.tsx"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/\(tabs\)/about.tsx" "scaffold/mobile/app/(tabs)/about.tsx"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/\(tabs\)/review.tsx" "scaffold/mobile/app/(tabs)/review.tsx"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/person/\[id\].tsx" "scaffold/mobile/app/person/[id].tsx"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/components/PersonProfileCard.tsx" scaffold/mobile/src/components/PersonProfileCard.tsx
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/components/PersonManagementCard.tsx" scaffold/mobile/src/components/PersonManagementCard.tsx
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/lib/personAdmin.ts" scaffold/mobile/src/lib/personAdmin.ts
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/lib/supervisor.ts" scaffold/mobile/src/lib/supervisor.ts
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/lib/adminSession.ts" scaffold/mobile/src/lib/adminSession.ts
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/admin.tsx" scaffold/mobile/app/admin.tsx
+          grep -q "title: 'حول التطبيق'" "scaffold/mobile/app/(tabs)/_layout.tsx"
+          grep -q "الإدارة" "scaffold/mobile/app/(tabs)/about.tsx"
+          grep -q "useAdminSession" "scaffold/mobile/app/(tabs)/review.tsx"
+          grep -q "useAdminSession" "scaffold/mobile/app/person/[id].tsx"
+          git add scaffold/mobile
+          if ! git diff --cached --quiet; then
+            git config user.name "shajara-restore"
+            git config user.email "shajara-restore@users.noreply.github.com"
+            git commit -m "Preserve secure Shajara admin screens and modern About navigation as canonical Expo source"
+            git push origin HEAD:main
+            echo 'MODERN_ADMIN_CANONICAL_SAVED'
+          else echo 'MODERN_ADMIN_CANONICAL_ALREADY_CURRENT'; fi
