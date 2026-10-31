@@ -36,3 +36,5 @@ jobs:
           scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/enable_shajara_admin_mobile.py "root@$HOST:/tmp/enable_shajara_admin_mobile.py"
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/enable_shajara_admin_mobile.py"
           echo 'SHAJARA_ADMIN_UI_VERIFIED'
+
+# Retry with fallback insertion before About scroll footer when the template changes.
