@@ -1,0 +1,56 @@
+name: Bump Shajara admin Android version
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/bump-shajara-admin-apk.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Validate login source and bump version to 1.2.0
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          test -s app/admin.tsx && test -s src/lib/adminSession.ts
+          grep -q "الإدارة" 'app/(tabs)/about.tsx'
+          grep -q "adminHeaders()" src/lib/personAdmin.ts
+          grep -q "adminHeaders()" src/lib/supervisor.ts
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('app.json')
+          v=json.loads(p.read_text())
+          assert v['expo']['android']['package']=='sa.pm.shajara'
+          current=int(v['expo']['android']['versionCode'])
+          if current<12:
+              v['expo']['android']['versionCode']=12
+              v['expo']['version']='1.2.0'
+              p.write_text(json.dumps(v,ensure_ascii=False,indent=2)+'\n')
+          assert v['expo']['version']=='1.2.0' and v['expo']['android']['versionCode']==12
+          print('ADMIN_RELEASE_READY',v['expo']['version'],v['expo']['android']['versionCode'])
+          PY
+          chown pmsa:pmsa app.json
+          node node_modules/typescript/bin/tsc --noEmit --pretty false
+          echo 'ADMIN_MOBILE_TYPESCRIPT_OK'
+          REMOTE
