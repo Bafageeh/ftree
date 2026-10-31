@@ -18,7 +18,7 @@ created = []
 def write_file(path, value):
     path = Path(path)
     if path.exists():
-        bak = BACKUP/(('mobile' if path.is_relative_to(APP) else 'api')+'-'+path.name)
+        bak = BACKUP/(('mobile' if str(path).startswith(str(APP)+'/') else 'api')+'-'+path.name)
         shutil.copy2(path,bak)
         edited.append((path,bak))
     else:
@@ -316,12 +316,12 @@ except Exception:
     # Roll back source files. Database migration remains in place to protect
     # existing API if mobile build fails; never expose old unprotected endpoints.
     for p,bak in reversed(edited):
-        if p.is_relative_to(API) and p in (API/'routes/api.php',API/'bootstrap/app.php'):
+        if str(p).startswith(str(API)+'/') and p in (API/'routes/api.php',API/'bootstrap/app.php'):
             continue
         shutil.copy2(bak,p)
         os.chown(p,OWNER.pw_uid,OWNER.pw_gid)
     for p in created:
-        if p.is_relative_to(API):continue
+        if str(p).startswith(str(API)+'/'):continue
         try:p.unlink()
         except OSError:pass
     raise
