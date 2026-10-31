@@ -1,0 +1,45 @@
+name: Inspect live Shajara generations control
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-tree-generations.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Find generation controls in running Expo 58 sources
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          echo '=== REAL APP VERSION ==='
+          grep -E '"expo"|"version"|"name"' package.json | head -20
+          echo '=== GENERATION REFERENCES ==='
+          grep -R -n -E 'أجيال|الأجيال|الاجيال|generationLimit|generationDepth|visibleGenerations|setGenerations|generationsToShow|MAX_GENERATIONS|generationCount' app src --include='*.tsx' --include='*.ts' | head -150 || true
+          echo '=== TREE ENTRY FILES ==='
+          find app src -maxdepth 4 -type f \( -iname '*tree*.tsx' -o -iname '*tree*.ts' -o -iname '*generation*.tsx' \) | head -65
+          REMOTE
