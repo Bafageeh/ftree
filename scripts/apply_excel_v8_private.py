@@ -154,9 +154,12 @@ def backup_files():
     dest.mkdir(parents=True,exist_ok=False,mode=0o700)
     db=API/'database/database.sqlite'
     require(db.is_file(), 'Expected SQLite database not found')
-    src=sqlite3.connect(str(db));dst=sqlite3.connect(str(dest/'database.sqlite'))
-    src.backup(dst)
-    dst.close();src.close()
+    sqlite_cli=shutil.which('sqlite3') or '/opt/android-sdk/platform-tools/sqlite3'
+    require(Path(sqlite_cli).is_file(), 'SQLite backup utility is unavailable')
+    snap=subprocess.run([sqlite_cli,str(db),'.backup '+str(dest/'database.sqlite')],
+                        stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=50)
+    require(snap.returncode==0 and (dest/'database.sqlite').is_file(),
+            'SQLite backup failed: '+(snap.stdout+snap.stderr)[-1000:])
     for relative in ('app/Http/Controllers/Api/PersonController.php',
                      'app/Http/Controllers/Api/ChartReadingController.php',
                      'app/Http/Controllers/Api/ChartEdgeController.php'):
