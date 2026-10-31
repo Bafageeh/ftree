@@ -101,23 +101,33 @@ try:
     paths['person'].write_text(s)
 
     s=paths['review'].read_text()
-    s=replace(s,"import { Ionicons } from '@expo/vector-icons';",
-              "import { Ionicons } from '@expo/vector-icons';\nimport { router } from 'expo-router';\nimport { useAdminSession } from '../../src/lib/adminSession';",'review import')
-    s=replace(s,"import { StyleSheet, Text, View } from 'react-native';",
-              "import { Pressable, StyleSheet, Text, View } from 'react-native';",'review button')
-    s=replace(s,"export default function ReviewScreen() {\n",
-              "export default function ReviewScreen() {\n  const isAdmin = useAdminSession();\n",'review hook')
-    s=replace(s,"      <View style={styles.board}><SupervisorReviewBoard /></View>",
-              '''      {isAdmin ? <View style={styles.board}><SupervisorReviewBoard /></View> :
-        <View style={{ paddingHorizontal: 24, paddingVertical: 36, alignItems: 'center', gap: 14 }}>
-          <Ionicons name="lock-closed-outline" size={44} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 19, fontWeight: '900', textAlign: 'center' }}>المراجعة والاعتماد للمدير فقط</Text>
-          <Text style={{ color: colors.muted, textAlign: 'center', lineHeight: 22 }}>سجّل الدخول من تبويب حول التطبيق ثم الإدارة. يمكنك إرسال مقترح تصحيح دون تسجيل الدخول.</Text>
-          <Pressable onPress={() => router.push('/admin')} accessibilityRole="button"
-            style={{ backgroundColor: colors.primary, padding: 15, borderRadius: 13, minWidth: 210, alignItems: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: '900' }}>دخول الإدارة</Text>
-          </Pressable>
-        </View>}''','review access gate')
+    import re
+    replacement, occurrences = re.subn(r'export default function\s+ReviewScreen\s*\(',
+        'function ActualReviewScreen(', s, count=1)
+    if occurrences != 1:
+        raise RuntimeError('Review screen has no known default component to secure')
+    s=replacement
+    s="""import { router as adminRoute } from 'expo-router';
+import { Pressable as AdminPressable, View as AdminView, Text as AdminText } from 'react-native';
+import { useAdminSession } from '../../src/lib/adminSession';
+""" + s
+    s += """
+export default function ReviewScreen() {
+  const authenticated = useAdminSession();
+  return authenticated ? <ActualReviewScreen /> : (
+    <AdminView style={{ flex: 1, padding: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6F8F3', gap: 18 }}>
+      <AdminText style={{ fontSize: 21, fontWeight: '900', color: '#183F32', textAlign: 'center' }}>المراجعة والاعتماد للمدير فقط</AdminText>
+      <AdminText style={{ textAlign: 'center', color: '#637568', lineHeight: 24 }}>
+        يُسمح للجميع بمشاهدة الشجرة وإرسال مقترحات التصحيح. اعتماد البيانات أو تعديلها يتطلب دخول الإدارة.
+      </AdminText>
+      <AdminPressable accessibilityRole="button" onPress={() => adminRoute.push('/admin')}
+        style={{ borderRadius: 14, backgroundColor: '#183F32', paddingHorizontal: 25, paddingVertical: 16 }}>
+        <AdminText style={{ color: 'white', fontWeight: '900' }}>دخول الإدارة</AdminText>
+      </AdminPressable>
+    </AdminView>
+  );
+}
+"""
     paths['review'].write_text(s)
 
     tsc=mobile/'node_modules/typescript/bin/tsc'
