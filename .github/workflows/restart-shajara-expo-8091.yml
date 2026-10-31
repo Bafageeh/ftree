@@ -77,3 +77,5 @@ jobs:
           echo 'NEW_EXPO_TUNNEL_LINK'
           grep -E 'Waiting on http.*\.on\.expo\.app|exp://.*\.on\.expo\.app' expo-8091.log | tail -n 3 || true
           REMOTE
+
+# Reopen Expo with restored canonical professional Explorer screen.
