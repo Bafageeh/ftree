@@ -17,7 +17,14 @@ assert 'lastFocus.current === focusId' in old_canvas
 assert 'node.hiddenCount > 0 && !node.collapsed' in old_screen
 assert 'limit = 180' in old_engine
 
-backup=root/'generation-fix-backups'/datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')
+# TypeScript includes all *.tsx files in the mobile tree; backups must live outside it.
+private=root.parent/'shajara-api/storage/app/private/mobile-generation-backups'
+private.mkdir(parents=True,exist_ok=True,mode=0o700)
+legacy=root/'generation-fix-backups'
+if legacy.exists():
+    import time
+    shutil.move(str(legacy),str(private/('prior-failed-patch-'+str(int(time.time())))))
+backup=private/datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')
 backup.mkdir(parents=True,mode=0o700)
 for f in (screen,canvas,engine,root/'app.json'):
     if f.exists():shutil.copy2(f,backup/f.name.replace('.tsx','-orig.tsx'))
