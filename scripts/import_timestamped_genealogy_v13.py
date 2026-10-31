@@ -20,7 +20,7 @@ def change(a,b):
 change("INPUT=Path('/tmp/shajara-v10.normalized.json')", "INPUT=Path('/tmp/shajara-v13.normalized.json')")
 change("OLD_NORMALIZED=PRIVATE/'shajara-source-v9-normalized.json.gz'", "OLD_NORMALIZED=PRIVATE/'shajara-source-v10-normalized.json.gz'")
 change("PREV_IMPORT=Path('/tmp/shajara_excel_only_import_v9.php')", "PREV_IMPORT=Path('/tmp/shajara_excel_only_import_v10.php')")
-change("IMPORT=Path('/tmp/shajara_excel_only_import_v10.php')", "IMPORT=Path('/tmp/shajara_excel_only_import_v13.php')")
+change("\nIMPORT=Path('/tmp/shajara_excel_only_import_v10.php')", "\nIMPORT=Path('/tmp/shajara_excel_only_import_v13.php')")
 change("OLD_SOURCE='الشجرة_مع_الجذع_المربوط(9).xlsx'; NEW_SOURCE='الشجرة_مع_الجذع_المربوط(10).xlsx'", "OLD_SOURCE='الشجرة_مع_الجذع_المربوط(10).xlsx'; NEW_SOURCE='الشجرة_مع_الجذع_المربوط(20261031-160557).xlsx'")
 change("OLD_SHA='f9785e1b8af5b8c52fe02fdc7600a0c400e148751ffb0bd48a43a1f2f8b6caad'", "OLD_SHA='13e85cacfcc1e0025533fd0f64c408788a515313e17defe0a2c1745af1d1c3a0'")
 change("NEW_SHA='13e85cacfcc1e0025533fd0f64c408788a515313e17defe0a2c1745af1d1c3a0'", "NEW_SHA='14d797c281b4a180593d9d5fb5631112e7dd8aa9c30a311927abc66050a6d5ff'")
