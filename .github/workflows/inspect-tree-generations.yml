@@ -44,6 +44,8 @@ jobs:
           sed -n '1,240p' 'app/(tabs)/tree.tsx'
           echo '=== GRAPH ENGINE CURRENT SOURCE ==='
           sed -n '1,280p' src/lib/treeExplorer.ts
+          echo '=== EXPLORER CANVAS ==='
+          sed -n '1,280p' src/components/explorer/ExplorerCanvas.tsx
           echo '=== TREE ENTRY FILES ==='
           find app src -maxdepth 4 -type f \( -iname '*tree*.tsx' -o -iname '*tree*.ts' -o -iname '*generation*.tsx' \) | head -65
           REMOTE
