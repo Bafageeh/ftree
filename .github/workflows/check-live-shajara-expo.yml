@@ -1,0 +1,49 @@
+name: Check live Shajara Expo connection
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-live-shajara-expo.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 6
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Check actual running Metro endpoints
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          for port in 8083 8091; do
+            if curl -fsS --max-time 4 "http://127.0.0.1:$port/status" | grep -qi running; then
+              echo "EXPO_LIVE_PORT=$port"
+              echo "EXPO_LAN_URL=exp://65.109.251.164:$port"
+            fi
+          done
+          echo 'EXPO_LOG_RECENT'
+          for file in expo-8083.log expo-8091.log; do
+            if [ -f "$file" ]; then
+              grep -E 'exp://|\.on\.expo\.app|Metro waiting|Using Expo' "$file" | tail -n 15 || true
+            fi
+          done
+          REMOTE
