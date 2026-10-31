@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+/* Test the live Expo 58 tree engine with the 517-person offline snapshot. */
+const fs=require('fs');
+const path=require('path');
+const vm=require('vm');
+const assert=require('assert');
+const app=process.env.APP_MOBILE || process.cwd();
+const ts=require(path.join(app,'node_modules/typescript'));
+const source=fs.readFileSync(path.join(app,'src/lib/treeExplorer.ts'),'utf8');
+const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const mod={exports:{}};
+const fakeRequire=(id)=>{if(id==='./lineageSearch')return {searchPeopleByLineage:()=>[]};throw Error('Unexpected import '+id);};
+vm.runInNewContext('(function(require,module,exports){'+js+'})',{require:fakeRequire,module:mod,exports:mod.exports})(fakeRequire,mod,mod.exports);
+const {createExplorerGraph,layoutExplorer}=mod.exports;
+const snapshot=fs.readFileSync(path.join(app,'src/generated/bundledPeople.ts'),'utf8');
+const match=snapshot.match(/export const bundledPeople: Person\[\] = (\[[\s\S]*\]);\s*$/);
+assert(match,'Expected validated offline genealogy snapshot');
+const people=JSON.parse(match[1]);
+assert.strictEqual(people.length,517,'Latest workbook must contain 517 names');
+const graph=createExplorerGraph(people);
+assert.strictEqual(graph.people.length,517);
+assert.strictEqual(graph.linkCount,516);
+const focus=graph.defaultFocusId;
+assert(focus!=null);
+const short=layoutExplorer(graph,focus,2,new Set());
+const long=layoutExplorer(graph,focus,8,new Set());
+assert(short.nodes.length>0);
+assert(long.nodes.length>short.nodes.length,'8 generations must show more descendants than 2');
+const maxLevel=Math.max(...long.nodes.map(n=>n.level));
+assert(maxLevel<=7,'Depth 8 contains at most levels 0..7');
+assert(long.nodes.every(n=>long.nodes.some(p=>p.person.id===graph.parents.get(n.person.id))||n.person.id===focus),'Every visible descendant has its parent in the layout');
+const collapsed=layoutExplorer(graph,focus,8,new Set([focus]));
+assert.strictEqual(collapsed.nodes.length,1,'Collapsing focus must hide its children');
+const p512=graph.people.find(x=>x.source_code==='P512');
+assert(p512,'Expected Hashim branch');
+const eight=layoutExplorer(graph,p512.id,8,new Set());
+assert(eight.nodes.length>1,'Focused Hashim branch must expand');
+console.log('GENERATIONS_ENGINE_VERIFIED',JSON.stringify({total:graph.people.length,links:graph.linkCount,focus,at2:short.nodes.length,at8:long.nodes.length,at8Levels:maxLevel+1,limited:long.limited,hashimBranchCount:eight.nodes.length}));
