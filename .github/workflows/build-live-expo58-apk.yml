@@ -28,7 +28,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Check preinstalled Android SDK
+        run: test -d "$ANDROID_HOME/platforms" && test -d "$ANDROID_HOME/build-tools"
       - name: Configure authenticated server access
         env:
           KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
