@@ -1,0 +1,79 @@
+name: Repair stale Expo Go tunnel 8091
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/restart-shajara-expo-8091.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restart ONLY stale Expo 8091 Metro with clean resolver cache
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          test -s src/lib/adminSession.ts
+          test -s 'app/(tabs)/review.tsx'
+          test -f node_modules/expo/bin/cli
+          old="$(fuser -n tcp 8091 2>/dev/null | awk '{print $1}' || true)"
+          if [ -n "$old" ]; then
+            for p in $old; do
+              cmd="$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null || true)"
+              case "$cmd" in *expo*8091*) kill "$p" 2>/dev/null || true;; *) echo "Refusing to kill unrelated listener: $cmd"; exit 1;; esac
+            done
+          fi
+          for i in $(seq 1 25); do
+            if ! fuser -n tcp 8091 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if fuser -n tcp 8091 2>/dev/null; then echo 'Port 8091 did not stop'; exit 1; fi
+          mv expo-8091.log "expo-8091.before-fix-$(date +%Y%m%d%H%M%S).log" 2>/dev/null || true
+          nohup env CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_URL='https://shajara.pm.sa/api/v1' /usr/bin/node node_modules/expo/bin/cli start --clear --go --tunnel --port 8091 > expo-8091.log 2>&1 < /dev/null &
+          newpid=$!
+          echo "RESTARTED_EXPO_8091_PID=$newpid"
+          ready=0
+          for i in $(seq 1 90); do
+            if ! kill -0 "$newpid" 2>/dev/null; then
+              echo 'Expo tunnel exited'; tail -n 65 expo-8091.log; exit 1
+            fi
+            if curl -fsS --max-time 3 http://127.0.0.1:8091/status 2>/dev/null | grep -qi running; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then tail -n 60 expo-8091.log; exit 1; fi
+          echo 'EXPO_8091_METRO_RUNNING'
+          query='platform=android&dev=true&lazy=true&minify=false&app=host.exp.exponent&modulesOnly=false&runModule=true&excludeSource=true&sourcePaths=url-server&hot=false&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable'
+          status="$(curl --max-time 105 -sS -o /tmp/shajara-android-bundle-fixed.out -w '%{http_code}' "http://127.0.0.1:8091/node_modules/expo-router/entry.bundle?$query" || true)"
+          echo "EXPO_8091_ANDROID_BUNDLE_STATUS=$status"
+          if test "$status" != 200; then
+            head -c 1800 /tmp/shajara-android-bundle-fixed.out || true
+            echo; tail -n 60 expo-8091.log
+            exit 1
+          fi
+          echo 'EXPO_8091_ANDROID_BUNDLE_VERIFIED'
+          for i in $(seq 1 22); do
+            if grep -qE 'Waiting on http.*\.on\.expo\.app|exp://.*\.on\.expo\.app' expo-8091.log; then break; fi
+            sleep 2
+          done
+          echo 'NEW_EXPO_TUNNEL_LINK'
+          grep -E 'Waiting on http.*\.on\.expo\.app|exp://.*\.on\.expo\.app' expo-8091.log | tail -n 3 || true
+          REMOTE
