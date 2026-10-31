@@ -1,0 +1,62 @@
+name: Restore modern Shajara Explorer and preserve as canonical source
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/restore-shajara-modern-explorer.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: shajara-restore-modern-tree
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secure SSH setup
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Restore modern screen and validate on Expo Android (no APK)
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/restore_modern_shajara_explorer.py "root@$HOST:/tmp/restore_modern_shajara_explorer.py"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/restore_modern_shajara_explorer.py"
+      - name: Preserve restored professional tree sources in canonical GitHub repository
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p scaffold/mobile/src/components/explorer scaffold/mobile/src/lib
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/\(tabs\)/tree.tsx" "scaffold/mobile/app/(tabs)/tree.tsx"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/lib/treeExplorer.ts" scaffold/mobile/src/lib/treeExplorer.ts
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/components/explorer/ExplorerCanvas.tsx" scaffold/mobile/src/components/explorer/ExplorerCanvas.tsx
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/src/components/explorer/explorerStyles.ts" scaffold/mobile/src/components/explorer/explorerStyles.ts
+          grep -q "ExplorerCanvas" "scaffold/mobile/app/(tabs)/tree.tsx"
+          grep -q "generationDepth={depth}" "scaffold/mobile/app/(tabs)/tree.tsx"
+          grep -q "generationDepth" scaffold/mobile/src/components/explorer/ExplorerCanvas.tsx
+          git add "scaffold/mobile/app/(tabs)/tree.tsx" scaffold/mobile/src/lib/treeExplorer.ts scaffold/mobile/src/components/explorer
+          if ! git diff --cached --quiet; then
+            git config user.name "shajara-restore"
+            git config user.email "shajara-restore@users.noreply.github.com"
+            git commit -m "Restore professional eight-generation Shajara Explorer as canonical mobile source"
+            git push origin HEAD:main
+            echo "MODERN_TREE_COMMITTED_CANONICAL"
+          else
+            echo "MODERN_TREE_ALREADY_CANONICAL"
+          fi
