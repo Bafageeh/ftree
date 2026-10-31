@@ -1,0 +1,51 @@
+name: Apply Shajara Excel v10
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/import-shajara-v10.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shajara-excel-v10
+  cancel-in-progress: false
+jobs:
+  deploy:
+    name: Import Excel v10 corrections securely
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure authenticated SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+      - name: Verify private encrypted workbook
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/crypt-venv"
+          "$RUNNER_TEMP/crypt-venv/bin/pip" install -q cryptography
+          "$RUNNER_TEMP/crypt-venv/bin/python" scripts/decrypt_shajara_v10.py
+      - name: Apply on production server with backups
+        shell: bash
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST" && test -n "$SERVER_PORT" && test -n "$APP_PATH"
+          scp -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$SERVER_PORT" "$RUNNER_TEMP/shajara-v10.normalized.json" scripts/apply_excel_v10_private.py "root@$SERVER_HOST:/tmp/"
+          ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -p "$SERVER_PORT" "root@$SERVER_HOST" "APP_PATH='$APP_PATH' python3 /tmp/apply_excel_v10_private.py"
+          rm -f "$RUNNER_TEMP/shajara-v10.normalized.json"
