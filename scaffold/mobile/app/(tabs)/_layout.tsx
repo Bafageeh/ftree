@@ -35,6 +35,7 @@ export default function TabsLayout() {
         name="tree"
         options={{
           title: 'الشجرة',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="git-network" color={color} size={size} />,
         }}
       />
