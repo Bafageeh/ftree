@@ -40,6 +40,10 @@ jobs:
           grep -E '"expo"|"version"|"name"' package.json | head -20
           echo '=== GENERATION REFERENCES ==='
           grep -R -n -E 'أجيال|الأجيال|الاجيال|generationLimit|generationDepth|visibleGenerations|setGenerations|generationsToShow|MAX_GENERATIONS|generationCount' app src --include='*.tsx' --include='*.ts' | head -150 || true
+          echo '=== TREE SCREEN CURRENT SOURCE ==='
+          sed -n '1,240p' 'app/(tabs)/tree.tsx'
+          echo '=== GRAPH ENGINE CURRENT SOURCE ==='
+          sed -n '1,280p' src/lib/treeExplorer.ts
           echo '=== TREE ENTRY FILES ==='
           find app src -maxdepth 4 -type f \( -iname '*tree*.tsx' -o -iname '*tree*.ts' -o -iname '*generation*.tsx' \) | head -65
           REMOTE
