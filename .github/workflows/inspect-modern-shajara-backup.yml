@@ -1,0 +1,46 @@
+name: Inspect previously working modern Shajara tree backup
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-modern-shajara-backup.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    steps:
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect original modern tree and current admin components
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          p="$APP_PATH/shajara-api/storage/app/private/mobile-generation-backups/20261031-185444/tree-orig.tsx"
+          echo '=== MODERN_BACKUP ==='
+          wc -lc "$p"
+          sed -n '1,250p' "$p"
+          echo '=== MODERN_DEPENDENCIES ==='
+          grep -nE '^[[:space:]]*import|أجيال|ExplorerCanvas|useAdminSession|selectedId|setDepth' "$p" | head -80
+          echo '=== APP ROUTE/LAYOUT ==='
+          sed -n '1,130p' 'app/(tabs)/_layout.tsx'
+          echo '=== NAV ADMIN ==='
+          grep -n 'admin\|الإدارة' 'app/(tabs)/about.tsx' 'app/(tabs)/review.tsx' app/admin.tsx | head -35
+          echo '=== OFFLINE_SOURCE ==='
+          grep -nE 'bundledPeopleBatch|export const bundledPeople' src/generated/bundledPeople.ts | head -30 || true
+          REMOTE
