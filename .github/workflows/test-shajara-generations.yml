@@ -1,0 +1,42 @@
+name: Test Shajara generations and bump Android version
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-shajara-generations.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Test actual 517-person tree and bump release version
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/test_generations_live.js scripts/bump_shajara_generations_version.py "root@$HOST:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          APP_MOBILE="$PWD" node /tmp/test_generations_live.js
+          APP_PATH="$APP_PATH" python3 /tmp/bump_shajara_generations_version.py
+          node node_modules/typescript/bin/tsc --noEmit
+          echo 'GENERATION_SELECTOR_VERIFIED_EXPO58'
+          REMOTE
