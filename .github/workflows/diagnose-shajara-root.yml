@@ -1,0 +1,41 @@
+name: Diagnose pm.sa tree root
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/diagnose-shajara-root.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect public routing without changes
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          echo ROUTES
+          cd "$APP_PATH/shajara-api"
+          php artisan route:list --path=tree --compact 2>/dev/null || php artisan route:list --path=tree
+          echo ROOT_SYMLINKS
+          for p in /mnt/home-storage/home/pmsa/public_html/tree /mnt/home-storage/home/pmsa/public_html/apps/shajara "$APP_PATH/shajara-api/public"; do ls -ld "$p" 2>/dev/null || true; done
+          echo HTACCESS
+          for p in /mnt/home-storage/home/pmsa/public_html/.htaccess /mnt/home-storage/home/pmsa/public_html/tree/.htaccess "$APP_PATH/shajara-api/public/.htaccess"; do if test -f "$p"; then echo "FILE $p"; grep -nE 'tree|lineage|RewriteRule|Redirect|RewriteBase' "$p" | head -35 || true; fi; done
+          echo HTTP_PROBES
+          for u in https://pm.sa/tree https://pm.sa/tree/ https://pm.sa/tree/lineage https://shajara.pm.sa/; do echo "$u"; curl -ksS -o /dev/null -w 'http:%{http_code} redirect:%{redirect_url}\n' --max-time 12 "$u" || true; done
+          REMOTE
