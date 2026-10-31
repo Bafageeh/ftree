@@ -1,0 +1,53 @@
+name: Publish Shajara Live Search Improvements
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-live-genealogy-search.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure authenticated server access
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | sed 's/\r$//' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Deploy and validate new search
+        env:
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
+          APP_PATH: ${{ vars.APP_PATH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -P "$SERVER_PORT" scaffold/api/app/Http/Controllers/Web/LineageController.php "root@$SERVER_HOST:/tmp/shajara-search-controller.php"
+          scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -P "$SERVER_PORT" scaffold/api/resources/views/lineage/index.blade.php "root@$SERVER_HOST:/tmp/shajara-search-index.blade.php"
+          scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -P "$SERVER_PORT" scripts/deploy_live_genealogy_search.py "root@$SERVER_HOST:/tmp/deploy_live_genealogy_search.py"
+          ssh -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "APP_PATH='$APP_PATH' python3 /tmp/deploy_live_genealogy_search.py"
+          python3 - <<'PY'
+          import urllib.request,urllib.parse
+          root="https://pm.sa/tree/"
+          html=urllib.request.urlopen(root,timeout=25).read().decode("utf-8")
+          assert 'id="tree-search"' in html
+          assert 'id="tree-results"' in html
+          assert 'new DOMParser()' in html
+          for text, expected in [('احمد','أحمد المهاجر'),('عبد الله','P003')]:
+              url=root+'?'+urllib.parse.urlencode({'search':text})
+              result=urllib.request.urlopen(url,timeout=30).read().decode('utf-8')
+              assert expected in result, "Search failed for "+text
+          print("WEB_SEARCH_VERIFIED: instant UI, Arabic spelling, and source codes")
+          PY
