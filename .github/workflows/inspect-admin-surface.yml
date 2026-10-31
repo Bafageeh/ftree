@@ -1,0 +1,51 @@
+name: Inspect Shajara admin surface
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-admin-surface.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect mobile and API authorization integration points
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          echo '===== ABOUT ====='
+          sed -n '1,190p' 'app/(tabs)/about.tsx'
+          echo '===== ADMIN CALLERS ====='
+          grep -RnE 'updatePersonDetails|updatePersonProfile|uploadPersonPhoto|addChildrenToPerson|deletePersonSubtree|reviewPerson\(|reviewEdge\(' app src --include='*.ts' --include='*.tsx' | head -100
+          echo '===== PERSON DETAIL ACTION CODE ====='
+          grep -nE 'return |management|Management|canEdit|isAdmin|edit|تعديل|اعتماد|review' 'app/person/[id].tsx' | head -100
+          echo '===== MOBILE CONFIG ====='
+          cat package.json | head -65
+          echo '===== API ====='
+          cd "$APP_PATH/shajara-api"
+          grep -nE 'patch|post|delete|review|admin|auth|middleware' routes/api.php | head -90
+          echo '===== API BOOTSTRAP ====='
+          sed -n '1,110p' bootstrap/app.php
+          echo '===== USER AUTH ====='
+          ls -l app/Models/User.php database/migrations/*user* 2>/dev/null || true
+          REMOTE
