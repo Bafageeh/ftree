@@ -65,7 +65,7 @@ jobs:
           php -l routes/api.php
           php -l routes/web.php
           php artisan migrate --force
-          php /tmp/bootstrap_shajara_admin.php
+          php -d display_errors=1 -d display_startup_errors=1 -d log_errors=0 /tmp/bootstrap_shajara_admin.php
           chown -R pmsa:pmsa app/Http/Middleware/ShajaraAdminOnly.php app/Http/Controllers/Api/ShajaraAdminAuthController.php database/migrations/2026_10_31_200000_create_shajara_admin_access.php routes/api.php routes/web.php
           php artisan optimize:clear
           php artisan route:cache
