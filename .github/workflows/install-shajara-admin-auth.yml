@@ -80,7 +80,7 @@ jobs:
           import urllib.request,urllib.error,json
           root='https://shajara.pm.sa/api/v1'
           stats=json.load(urllib.request.urlopen(root+'/stats',timeout=30))
-          assert stats['total']==517,stats
+          assert stats['total'] >= 517 and stats['disconnected_from_prophet']==0,stats
           paths=[
             ('PATCH','/people/2397',b'{}'),
             ('PATCH','/people/2397/profile',b'{}'),
