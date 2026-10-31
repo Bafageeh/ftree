@@ -1,0 +1,42 @@
+name: Inspect latest Shajara offline bundle
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-bundled-people-format.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Only show structural, not genealogy-personal, snapshot metadata
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 - <<'PY'
+          import os,pathlib,re
+          p=pathlib.Path(os.environ['APP_PATH'])/'shajara-mobile/src/generated/bundledPeople.ts'
+          s=p.read_text()
+          print('SIZE',len(s),'LINES',len(s.splitlines()))
+          print('QUOTED_CODES',len(re.findall(r'\\\"source_code\\\"\\s*:',s)))
+          print('UNQUOTED_CODES',len(re.findall(r'(?<![a-z])source_code\\s*:',s)))
+          print('SOURCE_CODE_ANY',s.count('source_code'))
+          print('FORMAT_PREFIX',repr(s[:80]))
+          print('HAS_517', '517' in s)
+          PY"
