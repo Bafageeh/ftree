@@ -1,0 +1,70 @@
+name: Verify and provision Shajara exclusive admin account
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/verify-admin-auth-security.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Provision admin from high-entropy password hash without publishing credentials
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" scripts/bootstrap_shajara_admin.php "root@$HOST:/tmp/bootstrap_shajara_admin.php"
+          HASH="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('scripts/install_single_admin_auth.py').read_text()
+          match=re.search(r"HASH = '([^']+)'",s)
+          assert match and re.fullmatch(r'\$2y\$12\$[./A-Za-z0-9]{53}',match.group(1))
+          print(match.group(1))
+          PY
+          )"
+          printf '%s\n' "$HASH" | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "cd '$APP/shajara-api' && read -r SHAJARA_ADMIN_BCRYPT_HASH && export SHAJARA_ADMIN_BCRYPT_HASH && php /tmp/bootstrap_shajara_admin.php"
+          unset HASH
+      - name: Test all sensitive endpoints deny anonymous access; public data intact
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          root='https://shajara.pm.sa/api/v1'
+          def req(path,method='GET',body=None):
+            b=None if body is None else json.dumps(body).encode()
+            r=urllib.request.Request(root+path,data=b,method=method,headers={'Accept':'application/json','Content-Type':'application/json'})
+            try:
+              with urllib.request.urlopen(r,timeout=30) as res:return res.status
+            except urllib.error.HTTPError as e:return e.code
+          checked=[
+            ('/people/1','PATCH',{}),('/people/1/profile','PATCH',{}),
+            ('/people/1/photo','POST',{}),('/people/1/children','POST',{}),
+            ('/people/1','DELETE',None),('/people/1/review','POST',{}),
+            ('/chart-edges/1/review','POST',{}),('/admin/me','GET',None)
+          ]
+          for path,method,data in checked:
+            status=req(path,method,data)
+            assert status==401,(path,status)
+          wrong=req('/admin/login','POST',{'username':'admin','password':'definitely-invalid'})
+          assert wrong in (401,422),wrong
+          with urllib.request.urlopen(root+'/stats',timeout=30) as r:stats=json.load(r)
+          assert stats['total']==517 and stats['connected_to_prophet']==517,stats
+          print('ADMIN_AUTH_GUARD_VERIFIED',len(checked),'sensitive paths; public people',stats['total'])
+          PY
