@@ -20,8 +20,34 @@ assert 'ExplorerCanvas' in src and 'شجرة النسب الشريف' in src and
 assert 'generationDepth' in canvas.read_text(), 'Generation-aware canvas missing'
 assert 'الإدارة' in about.read_text(), 'Admin entry was lost; refusing restore'
 assert 'useAdminSession' in (mobile/'app/person/[id].tsx').read_text(), 'Admin permissions were lost'
-assert 'getExplorerSnapshot' in (mobile/'src/lib/api.ts').read_text(), 'Modern data source not available'
+assert 'API_URL' in (mobile/'src/lib/api.ts').read_text(), 'Mobile API configuration missing'
 assert 'src/components/GenealogyTree' in original or 'ExplorerCanvas' in original, 'Unexpected current tree'
+src=src.replace("import { getExplorerSnapshot } from '../../src/lib/api';", "import { API_URL } from '../../src/lib/api';")
+snapshot_function = """async function getExplorerSnapshot(): Promise<{ people: Person[]; offline: boolean }> {
+  try {
+    const byId = new Map<number, Person>();
+    for (let page = 1; page <= 8; page++) {
+      const response = await fetch(`${API_URL}/people?per_page=250&lineage_status=connected&page=${page}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error('تعذر مزامنة الأسماء');
+      const payload = await response.json() as { data?: Person[] };
+      if (!Array.isArray(payload.data)) throw new Error('قائمة الأسماء غير مكتملة');
+      for (const person of payload.data) byId.set(person.id, person);
+      if (payload.data.length < 250) break;
+    }
+    if (byId.size >= bundledPeople.length) {
+      return { people: [...byId.values()], offline: false };
+    }
+  } catch {
+    // Preserve the latest validated offline workbook rather than display a
+    // partial or older live API response.
+  }
+  return { people: bundledPeople, offline: true };
+}
+
+"""
+src=src.replace("export function generateMetadata()",snapshot_function+"export function generateMetadata()",1)
 src=src.replace('layout={layout} selectedId={selectedId}', 'layout={layout} generationDepth={depth} selectedId={selectedId}')
 old="""    if (node.hiddenCount > 0 && !node.collapsed) {
       if (node.level >= depth - 1 && depth < 8) setDepth(d => Math.min(8, d + 1)); else navigate(node.person.id);
