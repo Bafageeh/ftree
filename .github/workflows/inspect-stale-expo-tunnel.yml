@@ -1,0 +1,44 @@
+name: Inspect stale Shajara Expo tunnel process
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-stale-expo-tunnel.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect running Expo process without changing it
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          echo 'EXPO_PROCESSES'
+          ps -eo pid,user,args | grep -E 'expo start|ngrok|metro' | grep -v grep | head -n 30 || true
+          echo 'EXPO_FILES'
+          ls -l .expo-*.pid expo-8091.log src/lib/adminSession.ts 2>/dev/null || true
+          echo 'LATEST_TUNNEL_LOG'
+          tail -n 28 expo-8091.log 2>/dev/null || true
+          echo 'MODULE_LINK'
+          realpath src/lib/adminSession.ts
+          echo 'EXPO_PID'
+          fuser -n tcp 8091 2>/dev/null || true
+          REMOTE
