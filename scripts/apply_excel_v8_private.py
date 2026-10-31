@@ -132,7 +132,7 @@ def prepare_importer():
     code = replace_exact(code,'$summary=$trunk?',
                          "if($key==='P282')$note.=' | صلة الأب P272 مسجلة في Excel ومعلقة فقط في العرض بسبب دورة P272-P281-P282.';\n    $summary=$trunk?")
     IMPORT.write_text(code)
-    check = subprocess.run(['php','-l',str(IMPORT)],capture_output=True,text=True)
+    check = subprocess.run(['php','-l',str(IMPORT)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True)
     require(check.returncode == 0,check.stdout+check.stderr)
     for name in ('PersonController.php','ChartReadingController.php','ChartEdgeController.php'):
         path = API / 'app/Http/Controllers/Api'/name
@@ -143,7 +143,7 @@ def prepare_importer():
         else:
             require("Excel-only:%" in existing or 'Excel-only:v8:%' in existing,
                     'Unexpected API chart source filter')
-    dry = subprocess.run(['php',str(IMPORT),'--dry-run'],cwd=API,capture_output=True,text=True,timeout=60)
+    dry = subprocess.run(['php',str(IMPORT),'--dry-run'],cwd=API,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=60)
     require(dry.returncode == 0, 'Validated import dry run failed: '+(dry.stdout+dry.stderr)[-1400:])
     print('DRY_RUN',dry.stdout.strip(),flush=True)
 
@@ -168,7 +168,7 @@ def backup_files():
 
 
 def import_people():
-    result=subprocess.run(['php',str(IMPORT)],cwd=API,capture_output=True,text=True,timeout=150)
+    result=subprocess.run(['php',str(IMPORT)],cwd=API,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=150)
     require(result.returncode==0, 'Importer failed: '+(result.stdout+result.stderr)[-1900:])
     try: report=json.loads(result.stdout)
     except json.JSONDecodeError: raise RuntimeError('Malformed importer output: '+result.stdout[-1400:])
@@ -192,7 +192,7 @@ def export_fallback(backup):
     target.write_text("import type { Person } from '../types';\n// Offline records derived solely from workbook v8.\nexport const bundledPeople: Person[] = "+json.dumps(data,ensure_ascii=False,separators=(',',':'))+';\n')
     tsc=Path('/opt/shajara-sdk58/node_modules/typescript/bin/tsc')
     if tsc.is_file():
-        result=subprocess.run(['node',str(tsc),'--noEmit','--pretty','false'],cwd=MOBILE,capture_output=True,text=True,timeout=120)
+        result=subprocess.run(['node',str(tsc),'--noEmit','--pretty','false'],cwd=MOBILE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=120)
         if result.returncode:
             shutil.copy2(backup/'bundledPeople.ts',target)
             raise RuntimeError('TypeScript verification failed: '+(result.stdout+result.stderr)[-1400:])
@@ -212,11 +212,11 @@ def publish_api(backup):
                 s=s.replace("Excel-only:%","Excel-only:v8:%")
             require('Excel-only:v8:%' in s, 'API chart filter not updated')
         f.write_text(s)
-        check=subprocess.run(['php','-l',str(f)],capture_output=True,text=True)
+        check=subprocess.run(['php','-l',str(f)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True)
         if check.returncode:
             shutil.copy2(backup/filename,f)
             raise RuntimeError('PHP lint failed: '+check.stdout+check.stderr)
-    subprocess.run(['php','artisan','optimize:clear'],cwd=API,capture_output=True,text=True,timeout=40)
+    subprocess.run(['php','artisan','optimize:clear'],cwd=API,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=40)
     print('API_PUBLISHED',flush=True)
 
 
@@ -235,7 +235,7 @@ def verify_api():
 
 
 def restart_expo():
-    result=subprocess.run(['ss','-ltnp','sport = :8091'],capture_output=True,text=True)
+    result=subprocess.run(['ss','-ltnp','sport = :8091'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True)
     match=re.search(r'pid=(\d+)',result.stdout)
     if match:
         pid=int(match.group(1))
@@ -267,7 +267,7 @@ def main():
     verify_api()
     PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
     dest=PRIVATE/'shajara-source-v8-normalized.json.gz'
-    dest.write_bytes(gzip.compress(INPUT.read_bytes(),compresslevel=8,mtime=0))
+    dest.write_bytes(gzip.compress(INPUT.read_bytes(),compresslevel=8))
     os.chmod(dest,0o600)
     try:
         print('EXPO_LINK',restart_expo(),flush=True)
