@@ -18,11 +18,8 @@ const count=(data.match(/"source_code":/g)||[]).length;
 if(count!==517) throw new Error('Offline snapshot is not latest workbook: '+count);
 console.log('SOURCE_VERIFIED Expo',expo,'people',count);
 JS
-if test -s package-lock.json; then
-  npm ci --no-audit --no-fund
-else
-  npm install --no-audit --no-fund
-fi
+# The server's package-lock may be older than its SDK 58 package.json.
+npm install --no-audit --no-fund
 export CI=1 EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1
 if test -f scripts/generate-shajara-icon.js && ! test -s assets/icon.png; then
   npm install --no-save --no-audit --no-fund sharp
