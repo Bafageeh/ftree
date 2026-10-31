@@ -1,0 +1,73 @@
+name: Install Shajara Single Admin Access
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/install-shajara-admin.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shajara-admin-login-install
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure production SSH
+        shell: bash
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 ~/.ssh
+          printf '%s' "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Deploy protected admin login and compile Expo 58
+        shell: bash
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$PORT" scripts/install_single_admin_auth.py "root@$HOST:/tmp/install_single_admin_auth.py"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' python3 /tmp/install_single_admin_auth.py"
+      - name: Validate authentication gate and unchanged public data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          api='https://shajara.pm.sa/api/v1'
+          stats=json.load(urllib.request.urlopen(api+'/stats',timeout=30))
+          assert stats['total']==517 and stats['connected_to_prophet']==517,stats
+          def call(path,method='GET',data=None):
+              body=None if data is None else json.dumps(data).encode()
+              req=urllib.request.Request(api+path, data=body, method=method, headers={'Accept':'application/json','Content-Type':'application/json'})
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.read()
+          for path,method,body in [
+              ('/people/1','PATCH',{}),
+              ('/people/1/profile','PATCH',{}),
+              ('/people/1/photo','POST',{}),
+              ('/people/1/children','POST',{}),
+              ('/people/1','DELETE',None),
+              ('/people/1/review','POST',{}),
+              ('/chart-edges/1/review','POST',{}),
+              ('/admin/me','GET',None),
+              ('/admin/logout','POST',{})
+          ]:
+              status,_=call(path,method,body)
+              assert status==401, (path,status)
+          invalid,_=call('/admin/login','POST',{'username':'admin','password':'not-the-password'})
+          assert invalid in (401,422),(invalid,'Password validation')
+          assert json.load(urllib.request.urlopen(api+'/stats',timeout=30))['total']==517
+          print('ADMIN_SECURITY_VERIFIED', 'all mutations blocked without authentication; 517 public names unchanged')
+          PY
