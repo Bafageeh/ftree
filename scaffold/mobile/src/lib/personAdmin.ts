@@ -1,4 +1,5 @@
 import { API_URL } from './api';
+import { adminHeaders } from './adminSession';
 import type { Gender, Person, ReadingStatus } from '../types';
 
 type UpdatePersonPayload = {
@@ -38,7 +39,7 @@ async function request<T>(path: string, method: 'PATCH' | 'POST' | 'DELETE', bod
   try {
     const response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...adminHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
@@ -88,7 +89,7 @@ export async function uploadPersonPhoto(
   try {
     const response = await fetch(`${API_URL}/people/${personId}/photo`, {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', ...adminHeaders() },
       body: form,
       signal: controller.signal,
     });

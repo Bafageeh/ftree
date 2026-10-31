@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { API_URL } from '../../src/lib/api';
@@ -39,6 +40,16 @@ export default function AboutScreen() {
           <Text style={styles.technicalText}>Laravel 13 API</Text>
           <Text selectable style={styles.apiText}>{API_URL}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="الإدارة - تسجيل دخول مدير النظام"
+          onPress={() => router.push('/admin')}
+          style={{ backgroundColor: colors.white, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, flexDirection: 'row-reverse', alignItems: 'center', gap: 12, padding: 18, marginTop: 18 }}>
+          <Ionicons name="lock-closed-outline" size={23} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.primary, fontSize: 17, fontWeight: '900', textAlign: 'right' }}>الإدارة</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12, textAlign: 'right' }}>تسجيل دخول المدير للاعتماد والتعديل</Text>
+          </View>
+          <Ionicons name="chevron-back" size={21} color={colors.primary} />
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { updatePersonProfile, uploadPersonPhoto } from '../lib/personAdmin';
+import { useAdminSession } from '../lib/adminSession';
 import { colors, radius, shadow } from '../theme';
 import type { Gender, Person } from '../types';
 
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function PersonProfileCard({ person, onUpdated }: Props) {
+  const isAdmin = useAdminSession();
   const [editing, setEditing] = useState(false);
   const [gender, setGender] = useState<Gender | null>(person.gender ?? null);
   const [mobileNumber, setMobileNumber] = useState(person.mobile_number ?? '');
@@ -123,16 +125,16 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
         <View style={styles.photoInfo}>
           <Text style={styles.photoTitle}>الصورة الشخصية</Text>
           <Text style={styles.photoHint}>صورة مربعة بصيغة JPG أو PNG أو WEBP، وبحد أقصى 5 ميجابايت.</Text>
-          <Pressable disabled={uploading} onPress={() => void choosePhoto()} style={styles.photoButton}>
+          {isAdmin && <Pressable disabled={uploading} onPress={() => void choosePhoto()} style={styles.photoButton}>
             {uploading ? <ActivityIndicator color={colors.white} /> : <Ionicons name="image" size={18} color={colors.white} />}
             <Text style={styles.photoButtonText}>{person.profile_photo_url ? 'تغيير الصورة' : 'رفع صورة شخصية'}</Text>
-          </Pressable>
+          </Pressable>}
         </View>
       </View>
 
       <View style={styles.divider} />
 
-      {editing ? (
+      {editing && isAdmin ? (
         <View>
           <Text style={styles.label}>الجنس</Text>
           <View style={styles.genderRow}>
@@ -200,10 +202,10 @@ export function PersonProfileCard({ person, onUpdated }: Props) {
             <Text style={styles.detailLabel}>التفاصيل العامة</Text>
             <Text style={styles.detailsText}>{details.trim() || 'لا توجد تفاصيل عامة مضافة.'}</Text>
           </View>
-          <Pressable onPress={() => setEditing(true)} style={styles.editButton}>
+          {isAdmin && <Pressable onPress={() => setEditing(true)} style={styles.editButton}>
             <Ionicons name="create" size={18} color={colors.white} />
             <Text style={styles.editText}>تعديل الملف الشخصي</Text>
-          </Pressable>
+          </Pressable>}
         </View>
       )}
     </View>

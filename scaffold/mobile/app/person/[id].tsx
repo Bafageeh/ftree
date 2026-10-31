@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PersonLineageContextCard } from '../../src/components/PersonLineageContextCard';
 import { PersonManagementCard } from '../../src/components/PersonManagementCard';
+import { PersonProfileCard } from '../../src/components/PersonProfileCard';
+import { useAdminSession } from '../../src/lib/adminSession';
 import { getLineage } from '../../src/lib/api';
 import { reviewPerson, type SupervisorDecision } from '../../src/lib/supervisor';
 import { colors, radius, shadow } from '../../src/theme';
@@ -13,6 +15,7 @@ import type { LineageResponse, Person } from '../../src/types';
 
 export default function PersonDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isAdmin = useAdminSession();
   const [data, setData] = useState<LineageResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -118,7 +121,7 @@ export default function PersonDetailsScreen() {
 
         <PersonLineageContextCard person={person} path={data.path} />
 
-        <PersonManagementCard
+        {isAdmin ? (<PersonManagementCard
           person={person}
           children={children}
           childrenCount={childrenCount}
@@ -129,9 +132,9 @@ export default function PersonDetailsScreen() {
             setNote(updated.supervisor_note ?? '');
           }}
           onReload={loadDetails}
-        />
+        />) : (<PersonProfileCard person={person} onUpdated={() => {}} />)}
 
-        {pending && (
+        {pending && isAdmin && (
           <View style={styles.card}>
             <Title icon="shield-checkmark" text="قرار المشرف" />
             {editing && <View><Label text="الاسم بعد التصحيح" /><TextInput value={name} onChangeText={setName} style={styles.input} textAlign="right" /><Label text="ملاحظة المشرف" /><TextInput value={note} onChangeText={setNote} style={[styles.input, styles.note]} multiline textAlign="right" /></View>}

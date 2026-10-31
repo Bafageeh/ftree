@@ -55,8 +55,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="about"
         options={{
-          title: 'المزيد',
-          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal-circle" color={color} size={size} />,
+          title: 'حول التطبيق',
+          tabBarIcon: ({ color, size }) => <Ionicons name="information-circle-outline" color={color} size={size} />,
         }}
       />
     </Tabs>

@@ -1,4 +1,5 @@
 import { API_URL } from './api';
+import { adminHeaders } from './adminSession';
 import type { ChartEdge, Person, ReadingStatus } from '../types';
 
 export type SupervisorDecision = 'approve' | 'pending' | 'reject';
@@ -30,6 +31,7 @@ async function postReview<T>(path: string, payload: unknown, missingMessage: str
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...adminHeaders(),
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
