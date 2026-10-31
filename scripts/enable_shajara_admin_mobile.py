@@ -41,8 +41,8 @@ try:
               "import { Ionicons } from '@expo/vector-icons';\nimport { router } from 'expo-router';",'about router import')
     s=replace(s,"import { ScrollView, StyleSheet, Text, View } from 'react-native';",
               "import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';",'about pressable')
-    mark='        <Text style={styles.footer}>'
-    assert mark in s,'about footer changed'
+    mark='        <Text style={styles.footer}>' if '        <Text style={styles.footer}>' in s else '      </ScrollView>'
+    assert mark in s,'about screen structure changed'
     s=s.replace(mark,'''        <Pressable accessibilityRole="button" accessibilityLabel="الإدارة - تسجيل دخول مدير النظام"
           onPress={() => router.push('/admin')}
           style={{ backgroundColor: colors.white, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, flexDirection: 'row-reverse', alignItems: 'center', gap: 12, padding: 18, marginTop: 18 }}>
