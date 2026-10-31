@@ -50,7 +50,7 @@ jobs:
           echo '===== API ====='
           cd "$APP_PATH/shajara-api"
           grep -nE 'patch|post|delete|review|admin|auth|middleware' routes/api.php | head -90
-          echo '===== API BOOTSTRAP ====='
+          echo '===== CURRENT SECURITY MIDDLEWARE ====='\n          sed -n '1,100p' routes/api.php\n          ls app/Http/Middleware 2>/dev/null || true\n          sed -n '1,180p' app/Http/Middleware/ShajaraAdminOnly.php 2>/dev/null || true\n          echo '===== API BOOTSTRAP ====='
           sed -n '1,110p' bootstrap/app.php
           echo '===== USER AUTH ====='
           ls -l app/Models/User.php database/migrations/*user* 2>/dev/null || true
