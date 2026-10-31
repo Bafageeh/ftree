@@ -25,7 +25,7 @@ if test -f scripts/generate-shajara-icon.js && ! test -s assets/icon.png; then
   npm install --no-save --no-audit --no-fund sharp
   node scripts/generate-shajara-icon.js assets
 fi
-npx tsc --noEmit
+npx expo export --platform android --output-dir "$RUNNER_TEMP/shajara-admin-bundle" --clear
 npx expo prebuild --platform android --clean
 test -s android/gradlew
 python3 - <<'PY'
