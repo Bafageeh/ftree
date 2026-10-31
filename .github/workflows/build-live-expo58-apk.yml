@@ -60,9 +60,9 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           "$apksigner" verify --verbose Shajara-Android-517-Expo58-v1.2.0.apk
           if curl -fLsS --max-time 90 'https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58.apk' -o /tmp/shajara-previous.apk; then
-            old_sig="$("$apksigner" verify --print-certs /tmp/shajara-previous.apk | grep 'Signer #1 certificate SHA-256 digest' | head -1)"
-            new_sig="$("$apksigner" verify --print-certs Shajara-Android-517-Expo58-v1.2.0.apk | grep 'Signer #1 certificate SHA-256 digest' | head -1)"
-            if [ "$old_sig" = "$new_sig" ]; then echo 'APK_SIGNATURE_MATCHES_EXISTING_INSTALL'; else echo 'APK_SIGNATURE_DIFFERENT_UNINSTALL_WOULD_BE_REQUIRED'; fi
+            old_sig="$("$apksigner" verify --print-certs /tmp/shajara-previous.apk 2>/dev/null | grep -i 'certificate SHA-256 digest' | head -1 || true)"
+            new_sig="$("$apksigner" verify --print-certs Shajara-Android-517-Expo58-v1.2.0.apk 2>/dev/null | grep -i 'certificate SHA-256 digest' | head -1 || true)"
+            if [ -z "$old_sig" ] || [ -z "$new_sig" ]; then echo 'SIGNATURE_COMPARISON_UNAVAILABLE'; elif [ "$old_sig" = "$new_sig" ]; then echo 'APK_SIGNATURE_MATCHES_EXISTING_INSTALL'; else echo 'APK_SIGNATURE_DIFFERENT_UNINSTALL_WOULD_BE_REQUIRED'; fi
           else
             echo 'PREVIOUS_APK_SIGNATURE_CHECK_UNAVAILABLE'
           fi
