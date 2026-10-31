@@ -47,3 +47,5 @@ jobs:
           assert data['total']==517 and data['connected_to_prophet']==517 and data['disconnected_from_prophet']==0, data
           print('PUBLISHED_AND_VERIFIED',data)
           PY
+
+# Anchored importer path fix.
