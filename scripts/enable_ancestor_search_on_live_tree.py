@@ -4,6 +4,9 @@ import os
 import shutil
 import subprocess
 import time
+import pwd
+from urllib.request import urlopen
+from urllib.parse import urlencode
 from pathlib import Path
 
 app = Path(os.environ.get('APP_PATH') or '/mnt/home-storage/home/pmsa/apps/shajara').resolve()
@@ -80,12 +83,40 @@ try:
     for target in (controller,):
         p=subprocess.run(['php','-l',str(target)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True,timeout=25)
         assert p.returncode==0,p.stdout
-    for cmd in (['php','artisan','view:clear'],['php','artisan','optimize:clear'],['php','artisan','view:cache']):
+    for cmd in (['php','artisan','view:clear'],['php','artisan','optimize:clear']):
         p=subprocess.run(cmd,cwd=api,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,universal_newlines=True,timeout=70)
         assert p.returncode==0,str(cmd)+': '+p.stdout[-1200:]
+
+    # Laravel runs as the cPanel account, not root. A root-created Blade
+    # compiled view makes Laravel touch() fail with an HTTP 500.
+    owner=pwd.getpwnam('pmsa')
+    os.chown(controller,owner.pw_uid,owner.pw_gid)
+    os.chown(view,owner.pw_uid,owner.pw_gid)
+    for directory in (api/'storage/framework/views',api/'bootstrap/cache'):
+        if directory.exists():
+            for base,folders,files in os.walk(str(directory)):
+                os.chown(base,owner.pw_uid,owner.pw_gid)
+                for item in folders+files:
+                    os.chown(os.path.join(base,item),owner.pw_uid,owner.pw_gid)
+
+    target='https://shajara.pm.sa/lineage?'+urlencode({'search':'احمد علوي هاشم'})
+    with urlopen(target,timeout=30) as response:
+        page=response.read().decode('utf-8')
+    assert 'الرمز: P517' in page,'Ancestor search did not return P517'
+    assert 'مسار النسب:' in page,'Ancestor search path missing'
+    print('ANCESTOR_SEARCH_RUNTIME_VERIFIED P517',flush=True)
 except Exception:
     shutil.copy2(backup/'LineageController.php',controller)
     shutil.copy2(backup/'index.blade.php',view)
     subprocess.run(['php','artisan','optimize:clear'],cwd=api,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=60)
+    owner=pwd.getpwnam('pmsa')
+    for p in (controller,view):
+        os.chown(p,owner.pw_uid,owner.pw_gid)
+    for directory in (api/'storage/framework/views',api/'bootstrap/cache'):
+        if directory.exists():
+            for base,folders,files in os.walk(str(directory)):
+                os.chown(base,owner.pw_uid,owner.pw_gid)
+                for item in folders+files:
+                    os.chown(os.path.join(base,item),owner.pw_uid,owner.pw_gid)
     raise
 print('ANCESTOR_SEARCH_DEPLOYED',str(backup),flush=True)
