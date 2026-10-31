@@ -38,3 +38,5 @@ jobs:
           echo 'SHAJARA_ADMIN_UI_VERIFIED'
 
 # Retry with fallback insertion before About scroll footer when the template changes.
+
+# Retry with an admin-only wrapper compatible with the current review screen.
