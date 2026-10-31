@@ -1,0 +1,46 @@
+name: Inspect process owning broken Expo tunnel 8091
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-expo-8091-process.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: SSH Setup
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect Metro owner and worker
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          echo 'ALL_LISTENER_PIDS'
+          fuser -n tcp 8091 2>/dev/null || true
+          for pid in $(fuser -n tcp 8091 2>/dev/null || :); do
+            echo "LISTENER_PID=$pid"
+            ps -o user,pid,ppid,etime,args -p "$pid" || true
+            echo "PID_CWD=$(readlink -f /proc/$pid/cwd 2>/dev/null || :)"
+            echo "PID_EXEC=$(readlink -f /proc/$pid/exe 2>/dev/null || :)"
+            echo "PID_CMD=$(tr '\0' ' ' < /proc/$pid/cmdline | head -c 350)"
+          done
+          echo 'NGROK_INSTALLS'
+          for target in "$APP_PATH/shajara-mobile/node_modules/@expo/ngrok" /opt/shajara-sdk58/node_modules/@expo/ngrok; do
+            test -d "$target" && echo "$target" || true
+          done
+          REMOTE
