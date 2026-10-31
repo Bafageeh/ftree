@@ -88,3 +88,5 @@ jobs:
           echo APK_PUBLISHED_VERIFIED
 
 # Build with reconciled Expo 58 dependency lock.
+
+# Retry for the current modular offline 517-person snapshot.
