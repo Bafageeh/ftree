@@ -1,0 +1,69 @@
+name: Align restored Shajara tree navigation
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/align-shajara-modern-header.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Remove redundant native header above modern tree (no APK)
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/(tabs)/_layout.tsx')
+          s=p.read_text()
+          needle="name=\"tree\"\n        options={{\n          title: 'الشجرة',"
+          result="name=\"tree\"\n        options={{\n          title: 'الشجرة',\n          headerShown: false,"
+          assert s.count(needle)==1 or s.count(result)==1,'Tree navigator unexpectedly modified'
+          if result not in s:
+              p.write_text(s.replace(needle,result))
+          assert "title: 'حول التطبيق'" in p.read_text()
+          assert 'ExplorerCanvas' in Path('app/(tabs)/tree.tsx').read_text()
+          print('PROFESSIONAL_TREE_SINGLE_HEADER_OK')
+          PY
+          chown pmsa:pmsa 'app/(tabs)/_layout.tsx'
+          export CI=1 EXPO_PUBLIC_API_URL=https://shajara.pm.sa/api/v1
+          node_modules/.bin/expo export --platform android --output-dir /tmp/shajara-modern-header-final --clear >/tmp/shajara-modern-header-check.log 2>&1 || { tail -n 65 /tmp/shajara-modern-header-check.log; exit 1; }
+          echo 'PROFESSIONAL_TREE_BUNDLE_VERIFIED'
+          REMOTE
+      - name: Keep corrected header in canonical Expo repo
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -P "$PORT" "root@$HOST:$APP/shajara-mobile/app/\(tabs\)/_layout.tsx" "scaffold/mobile/app/(tabs)/_layout.tsx"
+          grep -q 'headerShown: false' "scaffold/mobile/app/(tabs)/_layout.tsx"
+          git add "scaffold/mobile/app/(tabs)/_layout.tsx"
+          if ! git diff --cached --quiet; then
+            git config user.name "shajara-restore"
+            git config user.email "shajara-restore@users.noreply.github.com"
+            git commit -m "Hide duplicate native header above restored professional Shajara tree"
+            git push origin HEAD:main
+          fi
+          echo 'PROFESSIONAL_TREE_HEADER_CANONICAL'
