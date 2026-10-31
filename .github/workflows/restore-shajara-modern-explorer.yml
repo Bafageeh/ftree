@@ -60,3 +60,5 @@ jobs:
           else
             echo "MODERN_TREE_ALREADY_CANONICAL"
           fi
+
+# Retry with paginated API and bundled offline fallback.
