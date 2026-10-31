@@ -1,0 +1,45 @@
+name: Diagnose Shajara modern tree regression
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/diagnose-shajara-modern-tree.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 9
+    steps:
+      - name: SSH
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Compare active screen to professional Explorer and backups
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          echo '=== CURRENT_TREE ==='
+          ls -lah 'app/(tabs)/tree.tsx' src/lib/treeExplorer.ts src/components/explorer/ExplorerCanvas.tsx src/lib/adminSession.ts
+          sed -n '1,160p' 'app/(tabs)/tree.tsx'
+          echo '=== TREE COMPONENTS ==='
+          ls -lah src/components/explorer src/lib/treeExplorer.ts
+          echo '=== BACKUPS ==='
+          find "$APP_PATH/shajara-api/storage/app/private" -maxdepth 3 -type f \( -name 'tree.tsx' -o -name 'tree-orig.tsx' -o -name 'ExplorerCanvas.tsx' -o -name 'ExplorerCanvas-orig.tsx' \) -printf '%T@ %p\n' | sort -nr | head -35
+          echo '=== POTENTIAL OLD VERSIONS ==='
+          find "$APP_PATH/shajara-mobile" -maxdepth 2 -type d -iname '*backup*' -print | head -25
+          echo '=== METRO LOG ==='
+          tail -n 8 expo-8091.log
+          REMOTE
