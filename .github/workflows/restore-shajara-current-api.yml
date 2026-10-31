@@ -46,3 +46,5 @@ jobs:
           assert 'P003' in other
           print('WEB_AND_API_VERIFIED',stats)
           PY
+
+# Keep the original 517 corrected Excel people visible after admin API authentication install.
