@@ -39,6 +39,12 @@ jobs:
           grep -RnE 'updatePersonDetails|updatePersonProfile|uploadPersonPhoto|addChildrenToPerson|deletePersonSubtree|reviewPerson\(|reviewEdge\(' app src --include='*.ts' --include='*.tsx' | head -100
           echo '===== PERSON DETAIL ACTION CODE ====='
           grep -nE 'return |management|Management|canEdit|isAdmin|edit|تعديل|اعتماد|review' 'app/person/[id].tsx' | head -100
+          echo '===== PERSON DETAILS ====='
+          sed -n '1,200p' 'app/person/[id].tsx'
+          echo '===== PROFILE ====='
+          sed -n '1,190p' src/components/PersonProfileCard.tsx
+          echo '===== REVIEW SCREEN ====='
+          sed -n '1,150p' 'app/(tabs)/review.tsx'
           echo '===== MOBILE CONFIG ====='
           cat package.json | head -65
           echo '===== API ====='
