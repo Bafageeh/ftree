@@ -58,3 +58,5 @@ jobs:
           assert stats['total']==517 and stats['connected_to_prophet']==517
           print('ANCESTOR_SEARCH_VERIFIED',json.dumps({'query':'احمد علوي هاشم','result':'P517','people':517},ensure_ascii=False))
           PY
+
+# Retry after fixing Laravel Blade view cache ownership under pmsa.
