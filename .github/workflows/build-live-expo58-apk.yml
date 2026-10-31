@@ -1,0 +1,61 @@
+name: Build Shajara Expo 58 APK from production
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-live-expo58-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    environment: production
+    env:
+      SERVER_HOST: ${{ vars.SERVER_HOST }}
+      SERVER_PORT: ${{ vars.SERVER_PORT }}
+      APP_PATH: ${{ vars.APP_PATH }}
+      EXPO_PUBLIC_API_URL: https://shajara.pm.sa/api/v1
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Configure authenticated server access
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Assemble latest verified Android APK
+        run: bash scripts/build_live_expo58_apk.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shajara-Excel517-Expo58-APK
+          path: |
+            Shajara-Android-517-Expo58.apk
+            Shajara-Android-517-Expo58.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Publish APK and confirm download
+        run: |
+          set -euo pipefail
+          cp Shajara-Android-517-Expo58.apk Shajara-Android-Release.apk
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "mkdir -p '$APP_PATH/shajara-api/public/downloads'"
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$SERVER_PORT" Shajara-Android-517-Expo58.apk Shajara-Android-517-Expo58.apk.sha256 Shajara-Android-Release.apk "root@$SERVER_HOST:$APP_PATH/shajara-api/public/downloads/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "chmod 644 '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk* && chown pmsa:pmsa '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk*"
+          curl -fsSI --retry 4 --retry-delay 3 https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58.apk
+          echo APK_PUBLISHED_VERIFIED
