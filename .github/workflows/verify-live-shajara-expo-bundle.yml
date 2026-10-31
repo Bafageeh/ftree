@@ -1,0 +1,49 @@
+name: Verify live Shajara Expo Android bundle
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/verify-live-shajara-expo-bundle.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - name: Authenticate
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
+          HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Check exact bundle path for both running Metro instances
+        env:
+          HOST: ${{ vars.SERVER_HOST }}
+          PORT: ${{ vars.SERVER_PORT }}
+          APP: ${{ vars.APP_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -p "$PORT" "root@$HOST" "APP_PATH='$APP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/shajara-mobile"
+          query='platform=android&dev=true&lazy=true&minify=false&app=host.exp.exponent&modulesOnly=false&runModule=true&excludeSource=true&sourcePaths=url-server&hot=false&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable'
+          for p in 8083 8091; do
+            echo "TEST_METRO_PORT=$p"
+            status="$(curl --max-time 110 -sS -o /tmp/shajara-android-bundle-$p.out -w '%{http_code}' "http://127.0.0.1:$p/node_modules/expo-router/entry.bundle?$query" || true)"
+            echo "BUNDLE_STATUS_$p=$status"
+            if test "$status" != 200; then
+              head -c 650 /tmp/shajara-android-bundle-$p.out | sed -E 's/(token|password)=[^ ]+/\1=[redacted]/Ig' || true
+              echo
+            else
+              wc -c /tmp/shajara-android-bundle-$p.out
+            fi
+          done
+          echo 'CURRENT_EXPO_TUNNEL'
+          grep -E 'Waiting on http.*\.on\.expo\.app|exp://' expo-8091.log 2>/dev/null | tail -n 3 || true
+          REMOTE
