@@ -17,16 +17,26 @@ class LineageController extends Controller
 
     public function show(Request $request, Person $person, PropheticLineageService $lineage): View
     {
+        abort_unless($person->source_reference === 'الشجرة_مع_الجذع_المربوط(20261031-160557).xlsx', 404);
         abort_if($person->approval_status === 'rejected', 404);
         abort_unless($lineage->trace($person)['connected_to_prophet'], 404);
 
         return $this->render($request, $person, $lineage);
     }
 
+    private static function normalizeSearchText(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+        $value = preg_replace('/[\\x{064B}-\\x{065F}\\x{0670}\\x{0640}]/u', '', $value) ?? $value;
+        $value = strtr($value, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه', 'ؤ' => 'و', 'ئ' => 'ي']);
+        return preg_replace('/\\s+/u', ' ', $value) ?? $value;
+    }
+
     private function render(Request $request, ?Person $selected, PropheticLineageService $lineage): View
     {
         $allPeople = Person::query()
             ->where('approval_status', '!=', 'rejected')
+            ->where('source_reference', 'الشجرة_مع_الجذع_المربوط(20261031-160557).xlsx')
             ->orderByRaw('chart_order is null')
             ->orderBy('chart_order')
             ->orderBy('generation')
@@ -68,7 +78,18 @@ class LineageController extends Controller
                         $person->source_locator,
                     ]));
 
-                    return mb_stripos($haystack, $search) !== false;
+                    $searchText = self::normalizeSearchText($search);
+                    $recordText = self::normalizeSearchText($haystack);
+                    $recordCompact = str_replace(' ', '', $recordText);
+                    $terms = preg_split('/\s+/u', $searchText, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+                    foreach ($terms as $term) {
+                        if (mb_strpos($recordText, $term) === false && mb_strpos($recordCompact, $term) === false) {
+                            return false;
+                        }
+                    }
+
+                    return count($terms) > 0;
                 });
             })
             ->when($status === 'confirmed', fn ($records) => $records->filter(fn (array $record) => $record['trace']['fully_confirmed']))
