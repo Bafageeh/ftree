@@ -40,14 +40,40 @@ jobs:
           printf %s "$KEY" | base64 -d > ~/.ssh/id_ed25519
           printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Cache Gradle dependencies for Android release
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Assemble latest verified Android APK
         run: bash scripts/build_live_expo58_apk.sh
+      - name: Verify corrected release and compare signing certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const app=require('./shajara-mobile/app.json').expo;
+          if(app.android.versionCode!==11 || app.version!=='1.1.1') throw new Error('Expected corrected app version 1.1.1 build 11');
+          console.log('APK_GENERATIONS_RELEASE_VERSION',app.version,app.android.versionCode);
+          JS
+          cp Shajara-Android-517-Expo58.apk Shajara-Android-517-Expo58-v1.1.1.apk
+          sha256sum Shajara-Android-517-Expo58-v1.1.1.apk > Shajara-Android-517-Expo58-v1.1.1.apk.sha256
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          "$apksigner" verify --verbose Shajara-Android-517-Expo58-v1.1.1.apk
+          if curl -fLsS --max-time 90 'https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58.apk' -o /tmp/shajara-previous.apk; then
+            old_sig="$("$apksigner" verify --print-certs /tmp/shajara-previous.apk | grep 'Signer #1 certificate SHA-256 digest' | head -1)"
+            new_sig="$("$apksigner" verify --print-certs Shajara-Android-517-Expo58-v1.1.1.apk | grep 'Signer #1 certificate SHA-256 digest' | head -1)"
+            if [ "$old_sig" = "$new_sig" ]; then echo 'APK_SIGNATURE_MATCHES_EXISTING_INSTALL'; else echo 'APK_SIGNATURE_DIFFERENT_UNINSTALL_WOULD_BE_REQUIRED'; fi
+          else
+            echo 'PREVIOUS_APK_SIGNATURE_CHECK_UNAVAILABLE'
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Shajara-Excel517-Expo58-APK
           path: |
             Shajara-Android-517-Expo58.apk
             Shajara-Android-517-Expo58.apk.sha256
+            Shajara-Android-517-Expo58-v1.1.1.apk
+            Shajara-Android-517-Expo58-v1.1.1.apk.sha256
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -56,9 +82,9 @@ jobs:
           set -euo pipefail
           cp Shajara-Android-517-Expo58.apk Shajara-Android-Release.apk
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "mkdir -p '$APP_PATH/shajara-api/public/downloads'"
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$SERVER_PORT" Shajara-Android-517-Expo58.apk Shajara-Android-517-Expo58.apk.sha256 Shajara-Android-Release.apk "root@$SERVER_HOST:$APP_PATH/shajara-api/public/downloads/"
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$SERVER_PORT" Shajara-Android-517-Expo58.apk Shajara-Android-517-Expo58.apk.sha256 Shajara-Android-517-Expo58-v1.1.1.apk Shajara-Android-517-Expo58-v1.1.1.apk.sha256 Shajara-Android-Release.apk "root@$SERVER_HOST:$APP_PATH/shajara-api/public/downloads/"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "chmod 644 '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk* && chown pmsa:pmsa '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk*"
-          curl -fsSI --retry 4 --retry-delay 3 https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58.apk
+          curl -fsSI --retry 4 --retry-delay 3 https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58-v1.1.1.apk
           echo APK_PUBLISHED_VERIFIED
 
 # Build with reconciled Expo 58 dependency lock.
