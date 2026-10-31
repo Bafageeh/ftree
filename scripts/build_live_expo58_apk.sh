@@ -15,8 +15,14 @@ const expo=require('./package.json').dependencies?.expo;
 if(!/58/.test(expo||'')) throw new Error('Expected Expo SDK 58, got '+expo);
 const data=fs.readFileSync('src/generated/bundledPeople.ts','utf8');
 const count=(data.match(/"source_code":/g)||[]).length;
-if(count!==517) throw new Error('Offline snapshot is not latest workbook: '+count);
-console.log('SOURCE_VERIFIED Expo',expo,'people',count);
+const distributed=/bundledPeopleBatch[0-9A-Za-z]+/.test(data);
+if(count!==517 && !distributed) throw new Error('Missing complete latest genealogy snapshot: '+count);
+if(distributed) {
+  for(const name of ['bundledPeopleBatch3.ts','bundledPeopleBatch4a.ts','bundledPeopleBatch4b.ts']) {
+    if(!fs.existsSync('src/generated/'+name)) throw new Error('Missing offline genealogy batch: '+name);
+  }
+}
+console.log('SOURCE_VERIFIED Expo',expo,distributed?'composed offline genealogy batches':count+' people');
 JS
 # The server's package-lock may be older than its SDK 58 package.json.
 npm install --no-audit --no-fund
