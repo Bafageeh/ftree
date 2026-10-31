@@ -60,3 +60,5 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$SERVER_PORT" "root@$SERVER_HOST" "chmod 644 '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk* && chown pmsa:pmsa '$APP_PATH/shajara-api/public/downloads/'Shajara-Android-*.apk*"
           curl -fsSI --retry 4 --retry-delay 3 https://shajara.pm.sa/downloads/Shajara-Android-517-Expo58.apk
           echo APK_PUBLISHED_VERIFIED
+
+# Build with reconciled Expo 58 dependency lock.
