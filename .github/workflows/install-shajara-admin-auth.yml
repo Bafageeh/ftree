@@ -102,3 +102,5 @@ jobs:
           assert bad in (401,422),bad
           print('ADMIN_SECURITY_CHECKS_PASSED')
           PY
+
+# Retry with Composer autoload before protected account provisioning.
